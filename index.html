@@ -139,6 +139,12 @@ h2{font:600 clamp(30px,4.4vw,40px)/1.1 var(--serif);margin:0}
 .sublist{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:4px 0 10px}
 .sublist div{font-size:13.5px;color:var(--ink-dim);padding:8px 10px;border-left:2px solid var(--neon-dim)}
 .sublist b{color:var(--ink);font-weight:600;display:block}
+.sublist a{display:block;font-size:13.5px;color:var(--ink-dim);padding:8px 10px;border-left:2px solid var(--neon);background:rgba(79,216,255,.04);transition:background .2s}
+.sublist a:hover{background:rgba(79,216,255,.12);text-decoration:none}
+.sublist a:hover b{color:var(--neon)}
+.soon{font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-left:4px}
+a.plain{color:inherit} a.plain:hover{color:var(--neon);text-decoration:none}
+.proj .more{display:inline-block;margin-top:10px;font:500 13px var(--mono);letter-spacing:.04em}
 
 .off{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .off .panel{padding:16px 18px}
@@ -250,6 +256,7 @@ footer{margin-top:60px}
           <h3>Just curious?</h3>
           <ul>
             <li><a href="#projects">Projects</a></li>
+            <li><a href="/bench/">Play the bench</a></li>
             <li><a href="#publication">Research</a></li>
             <li><a href="#off-hours">Off hours</a></li>
           </ul>
@@ -356,9 +363,10 @@ footer{margin-top:60px}
       <div class="projects">
         <div class="panel proj reveal">
           <div class="tag active">Active</div>
-          <h3>Project Phoenix</h3>
+          <h3><a class="plain" href="https://github.com/AidenHill03/CDS" target="_blank" rel="noopener">Project Phoenix</a></h3>
           <p>A complex-dynamics application for exploring dynamical and parameter planes: relaxed-Newton render modes, Wada and Hausdorff basin diagnostics, and now the simultaneous-approximation construction from my paper. Deep zoom (~10⁻³⁰⁰) is next.</p>
           <div class="stack">C++ · Python · CMake · pybind11</div>
+          <a class="more" href="https://github.com/AidenHill03/CDS" target="_blank" rel="noopener">View on GitHub →</a>
         </div>
         <div class="panel proj reveal">
           <div class="tag research">Research code</div>
@@ -368,15 +376,17 @@ footer{margin-top:60px}
         </div>
         <div class="panel proj wide reveal">
           <div class="tag build">Building</div>
-          <h3>Project Bench</h3>
-          <p>A growing shelf of game-theory games and physics simulations, moving to the web.</p>
+          <h3><a class="plain" href="/bench/">Project Bench</a></h3>
+          <p>A growing shelf of game-theory games and physics simulations that run in the browser, on a computer or a phone. Pick one to play.</p>
           <div class="sublist">
-            <div><b>Coins in a Line</b>Two players take from either end; perfect and imperfect information.</div>
-            <div><b>Dice Lab</b>Polyhedral dice physics with a Monte Carlo simulator.</div>
-            <div><b>Troop Politics</b>Agent-based social-network sim: factions, relationships, territory.</div>
-            <div><b>Quantum ring &amp; Möbius strip</b>Particle on a ring (with Aharonov–Bohm flux) and on a Möbius strip.</div>
-            <div><b>Correlation games</b>Cooperative games in classical and entangled versions.</div>
+            <a href="/bench/#coins"><b>Coins in a Line →</b>Take coins from either end of a row; easy and exact-minimax opponents.</a>
+            <a href="/bench/#rooms"><b>Two Rooms →</b>The CHSH game, played classically: the best possible average is 75%.</a>
+            <a href="/bench/#entangled"><b>Entangled Rooms →</b>The same game with a shared entangled pair and a measurement dial: up to ≈85.4%.</a>
+            <a href="/bench/#troop"><b>Troop Politics →</b>Foraging bands whose feelings spread by gossip and decide who fights.</a>
+            <div><b>Dice Lab <span class="soon">soon</span></b>Polyhedral dice physics with a Monte Carlo simulator.</div>
+            <div><b>Quantum ring &amp; Möbius strip <span class="soon">soon</span></b>Particle on a ring (with Aharonov–Bohm flux) and on a Möbius strip.</div>
           </div>
+          <a class="more" href="/bench/">Open the bench →</a>
         </div>
         <div class="panel proj reveal">
           <div class="tag build">Building</div>

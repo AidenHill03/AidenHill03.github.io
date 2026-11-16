@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Shelf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: a night-blue game cabinet. Shelf of tiles → one game per screen, sticky top bar. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1a30;
+  --panel: #16243f;
+  --card: #1c2e50;
+  --card-hi: #25395f;
+  --line: #2b4270;
+  --text: #eef1f7;
+  --dim: #93a1bd;
+  --gold: #e8b931;
+  --gold-dark: #a8741a;
+  --gold-ink: #4a3208;
+  --mint: #5ad1a6;
+  --mint-ink: #0d2a20;
+  --miss: #e08a7b;
+  --red-ans: #ef7d62;
+  --blue-ans: #5aa9e6;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --r: 14px;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--f-display); line-height: 1.1; margin: 0; text-wrap: balance; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 16px; padding-block: 0 40px; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.dim { color: var(--dim); }
+.btn {
+  border: 0; border-radius: 12px; padding: 12px 20px; min-height: 46px;
+  background: var(--card-hi); color: var(--text); font-weight: 700;
+}
+.btn:hover { background: var(--line); }
+.btn.primary { background: var(--mint); color: var(--mint-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.big { font-size: 1.15rem; padding: 16px 28px; min-height: 58px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--dim); }
+.field select, .field input {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 10px; min-height: 42px; color: var(--text); font-size: 1rem;
+}
+
+/* ---------- shelf ---------- */
+.shelf-head { display: flex; align-items: center; gap: 16px; padding-block: 28px 20px; flex-wrap: wrap; }
+.shelf-head img { width: 64px; height: 64px; }
+.shelf-head h1 { font-size: clamp(2rem, 6vw, 2.9rem); font-weight: 800; letter-spacing: -.01em; }
+.shelf-head .count { color: var(--dim); }
+.shelf-head .grow { flex: 1; min-width: 0; }
+.seg { display: inline-flex; background: var(--panel); border-radius: 12px; padding: 4px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--dim); padding: 8px 14px; border-radius: 9px; font-weight: 700; min-height: 40px; }
+.seg button[aria-pressed="true"] { background: var(--card-hi); color: var(--text); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 14px; }
+.tile {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  padding: 18px 14px 16px; background: var(--card); border: 0; border-radius: 18px; color: var(--text);
+  transition: background .15s, transform .15s;
+}
+.tile:hover { background: var(--card-hi); transform: translateY(-2px); }
+.tile svg { width: 112px; height: 112px; max-width: 100%; }
+.tile .t { font-family: var(--f-display); font-weight: 600; font-size: 1.1rem; }
+.tile .p { color: var(--dim); font-size: .85rem; }
+.list { display: flex; flex-direction: column; gap: 10px; }
+.row {
+  display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--card);
+  border-radius: 16px; border: 0; text-align: left; color: var(--text); width: 100%;
+}
+.row:hover { background: var(--card-hi); }
+.row svg { width: 60px; height: 60px; flex: none; }
+.row .info { flex: 1; min-width: 0; }
+.row .t { font-family: var(--f-display); font-weight: 600; font-size: 1.12rem; }
+.row .p { color: var(--dim); font-size: .85rem; margin-left: 6px; font-family: var(--f-body); font-weight: 400; }
+.row .d { color: var(--dim); font-size: .92rem; }
+.row .play { flex: none; background: var(--mint); color: var(--mint-ink); font-weight: 700; padding: 9px 18px; border-radius: 10px; }
+.shelf-foot { color: var(--dim); font-size: .85rem; margin-top: 28px; }
+
+/* ---------- game frame ---------- */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  display: flex; align-items: center; gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--panel);
+}
+.topbar h2 { font-size: 1.3rem; font-weight: 600; flex: 1; min-width: 0; }
+.back { border: 0; background: var(--panel); color: var(--text); border-radius: 10px; padding: 8px 14px; min-height: 40px; font-weight: 700; }
+.stage { padding-top: 18px; }
+
+/* ---------- coins in a line ---------- */
+.ctrls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; background: var(--panel); padding: 12px 14px; border-radius: var(--r); }
+.ctrls .field { min-width: 0; }
+.ctrls .btn { margin-left: auto; }
+.board { position: relative; margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
+.tray { background: var(--card); border-radius: var(--r); padding: 12px 14px; display: flex; gap: 14px; align-items: center; min-height: 92px; }
+.tray .who { flex: none; width: 104px; position: relative; }
+.tray .name { color: var(--dim); font-weight: 700; font-size: .95rem; transition: color .2s; }
+.tray .name.active { color: var(--mint); }
+.tray .score { font-family: var(--f-mono); font-weight: 700; font-size: 1.9rem; line-height: 1.1; }
+.tray .haul { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; align-content: center; }
+.status { text-align: center; min-height: 1.5em; font-size: 1.05rem; }
+.pile-area { display: flex; justify-content: center; padding-block: 6px; min-height: 120px; }
+.pile { display: flex; flex-wrap: wrap; gap: var(--g, 8px); align-content: flex-start; }
+.coin {
+  width: var(--s, 56px); height: var(--s, 56px); border-radius: 50%; flex: none;
+  display: grid; place-items: center; user-select: none;
+  background: radial-gradient(circle at 50% 50%, var(--gold) 60%, #d9a92a 61%, var(--gold) 66%);
+  box-shadow: inset 0 0 0 2px var(--gold-dark), 0 3px 0 var(--gold-dark);
+  color: var(--gold-ink); font-family: var(--f-mono); font-weight: 700; font-size: calc(var(--s, 56px) * .38);
+  border: 0; padding: 0; transition: transform .15s, box-shadow .15s;
+}
+.coin.end { box-shadow: inset 0 0 0 2px var(--gold-dark), 0 3px 0 var(--gold-dark), 0 0 0 3px var(--text); cursor: pointer; }
+.coin.end:hover, .coin.end:focus-visible { transform: translateY(-6px); }
+.haul .coin { width: var(--ts, 28px); height: var(--ts, 28px); font-size: calc(var(--ts, 28px) * .42); box-shadow: inset 0 0 0 1.5px var(--gold-dark); }
+.pop { position: absolute; left: 66px; top: 22px; color: var(--mint); font-weight: 700; font-family: var(--f-mono); pointer-events: none; }
+.result {
+  position: absolute; inset: 0; display: grid; place-items: center; background: rgba(15, 26, 48, .72);
+  border-radius: var(--r);
+}
+.result .card { background: var(--panel); border: 2px solid var(--mint); border-radius: 18px; padding: 24px 28px; text-align: center; display: grid; gap: 10px; max-width: 92%; }
+.result h3 { font-size: clamp(1.8rem, 7vw, 2.6rem); font-weight: 800; }
+
+/* ---------- two rooms ---------- */
+.room { max-width: 640px; margin: 0 auto; display: grid; gap: 18px; }
+.panel { background: var(--panel); border-radius: var(--r); padding: 18px; }
+.panel h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; }
+.rules { display: grid; gap: 10px; }
+.rules p { margin: 0; }
+.case-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.case-table th, .case-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--line); }
+.case-table th { color: var(--dim); font-weight: 700; font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; }
+.case-table td.num, .case-table th.num { text-align: right; }
+.setup-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.note { border-left: 3px solid var(--gold); padding: 6px 0 6px 12px; color: var(--dim); }
+details.panel summary { cursor: pointer; font-weight: 700; font-family: var(--f-display); font-size: 1.1rem; }
+details.panel[open] summary { margin-bottom: 12px; }
+.strat { display: grid; grid-template-columns: auto 1fr 1fr; gap: 8px 10px; align-items: center; }
+.strat .h { color: var(--dim); font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.strat select, .strat input { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-height: 40px; min-width: 0; width: 100%; }
+.center { text-align: center; display: grid; gap: 14px; justify-items: center; }
+.handoff { padding-block: 40px; }
+.handoff .big-name { font-family: var(--f-display); font-weight: 800; font-size: clamp(2.2rem, 9vw, 3.4rem); }
+.round-tag { color: var(--dim); font-family: var(--f-mono); font-size: .9rem; }
+.flip { width: 132px; height: 132px; perspective: 600px; }
+.flip .inner { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: flip .7s ease-out; }
+@keyframes flip { from { transform: rotateY(900deg); } to { transform: rotateY(0); } }
+.face {
+  position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; backface-visibility: hidden;
+  background: radial-gradient(circle, #f0f0f0 58%, #c9ccd6 60%, #e4e6ec 66%); color: #22304e;
+  box-shadow: inset 0 0 0 3px #9aa1b4; font-family: var(--f-display); font-weight: 800; font-size: 1.5rem;
+}
+.answers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.ans { border: 0; border-radius: 16px; min-height: 96px; font-family: var(--f-display); font-weight: 800; font-size: 1.6rem; color: #10182a; }
+.ans.red { background: var(--red-ans); }
+.ans.blue { background: var(--blue-ans); }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-weight: 700; }
+.chip.red { background: var(--red-ans); color: #10182a; }
+.chip.blue { background: var(--blue-ans); color: #10182a; }
+.chip.coin-h, .chip.coin-t { background: #e4e6ec; color: #22304e; }
+.reveal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.reveal-grid .panel { display: grid; gap: 8px; justify-items: start; }
+.verdict { font-family: var(--f-display); font-weight: 800; font-size: 2rem; }
+.verdict.win { color: var(--mint); }
+.verdict.miss { color: var(--miss); }
+.dial-wrap { display: grid; justify-items: center; gap: 10px; width: 100%; }
+.dial { width: min(260px, 72vw); height: auto; touch-action: none; cursor: grab; }
+.dial-read { font-family: var(--f-mono); font-size: 1.4rem; font-weight: 700; }
+.nudges { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.nudges button { border: 0; background: var(--card-hi); border-radius: 9px; min-width: 52px; min-height: 40px; font-family: var(--f-mono); }
+.dial-wrap input[type=range] { width: min(300px, 80vw); accent-color: var(--mint); }
+.meter { position: relative; height: 26px; background: var(--card); border-radius: 8px; overflow: visible; margin-top: 36px; margin-bottom: 30px; }
+.meter .fill { position: absolute; inset: 0 auto 0 0; background: var(--mint); border-radius: 8px; }
+.meter .mark { position: absolute; top: -8px; bottom: -8px; width: 2px; background: var(--text); }
+.meter .mark span { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: .75rem; color: var(--dim); }
+.meter .mark.top span { bottom: calc(100% + 2px); }
+.meter .mark.bot span { top: calc(100% + 2px); }
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat { background: var(--card); border-radius: 12px; padding: 12px 14px; }
+.stat .k { color: var(--dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+.stat .v { font-family: var(--f-mono); font-size: 1.5rem; font-weight: 700; }
+.big-rate { font-family: var(--f-mono); font-weight: 700; font-size: clamp(3rem, 14vw, 4.6rem); line-height: 1; }
+.scroll-x { overflow-x: auto; }
+.log { font-family: var(--f-mono); font-size: .85rem; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
+
+<div id="app" class="wrap"></div>
+<p style="text-align:center;margin:28px 0 36px;font:500 13px 'JetBrains Mono',ui-monospace,monospace"><a href="/" style="color:#93a1bd;text-decoration:none">&larr; aidenhill03.github.io</a></p>
+
+
+<script>
+"use strict";
+const ICON = "data:image/png;base64,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";
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("shelf." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("shelf." + k, JSON.stringify(v)); } catch {} },
+};
+function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+
+/* ================================================================ icons */
+const ICONS = {
+  coins: `<svg viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" rx="26" fill="#25407a"/>
+    ${[26, 60, 94].map((x, i) => `<g transform="translate(${x} ${i === 2 ? 52 : 66})">
+      ${i !== 1 ? '<circle r="17" fill="none" stroke="#f1f1f1" stroke-width="2.5"/>' : ""}
+      <circle r="14" fill="#a8741a"/><circle r="13" cy="-1" fill="#e8b931"/><circle r="9.5" cy="-1" fill="none" stroke="#c99a2e" stroke-width="1.2"/></g>`).join("")}</svg>`,
+  rooms: `<svg viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" rx="26" fill="#2a3f74"/>
+    <rect x="14" y="28" width="40" height="64" rx="5" fill="#16243f"/><rect x="66" y="28" width="40" height="64" rx="5" fill="#16243f"/>
+    <circle cx="34" cy="52" r="12" fill="#ef7d62"/><circle cx="86" cy="52" r="12" fill="#5aa9e6"/>
+    <rect x="22" y="72" width="24" height="5" rx="2.5" fill="#93a1bd"/><rect x="74" y="72" width="24" height="5" rx="2.5" fill="#93a1bd"/></svg>`,
+  quantum: `<svg viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" rx="26" fill="#22485e"/>
+    <circle cx="36" cy="60" r="22" fill="none" stroke="#5ad1a6" stroke-width="3"/><circle cx="84" cy="60" r="22" fill="none" stroke="#5ad1a6" stroke-width="3"/>
+    <line x1="36" y1="40" x2="36" y2="80" stroke="#eef1f7" stroke-width="4" stroke-linecap="round" transform="rotate(-22 36 60)"/>
+    <line x1="84" y1="40" x2="84" y2="80" stroke="#eef1f7" stroke-width="4" stroke-linecap="round" transform="rotate(22 84 60)"/>
+    <path d="M58 60 q6 -9 12 0 q-6 9 -12 0z" fill="#e8b931" transform="translate(-4 0)"/></svg>`,
+};
+
+// Placeholder until the real icon is chosen.
+ICONS.troop = `<svg viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" rx="26" fill="#2b4270"/>
+  <text x="60" y="74" text-anchor="middle" font-family="Bricolage Grotesque, Avenir Next, sans-serif" font-weight="800" font-size="44" fill="#eef1f7">TP</text></svg>`;
+
+/* ================================================================ registry */
+const GAMES = [
+  { id: "coins", title: "Coins in a Line", players: "1–2 players", icon: ICONS.coins,
+    description: "Take coins from either end of the row. Highest total wins.", mount: (el) => coinsGame(el) },
+  { id: "rooms", title: "Two Rooms", players: "2 players, co-op", icon: ICONS.rooms,
+    description: "Separate rooms, private coin flips, one shared score. How well can you coordinate?", mount: (el) => roomsGame(el, false) },
+  { id: "entangled", title: "Entangled Rooms", players: "2 players, co-op", icon: ICONS.quantum,
+    description: "Two Rooms again, but you share an entangled pair. Can you beat the classical limit?", mount: (el) => roomsGame(el, true) },
+  { id: "troop", title: "Troop Politics", players: "Simulation", icon: ICONS.troop, wide: true,
+    description: "Bands forage a shared range, and feelings spread by gossip. When fruit runs short, those feelings decide who fights and who takes whose side.", mount: (el) => troopGame(el) },
+];
+
+/* ================================================================ router + shelf */
+const app = $("#app");
+let current = null;
+
+function route() {
+  if (current && current.unmount) current.unmount();
+  current = null;
+  const id = location.hash.slice(1);
+  const game = GAMES.find((g) => g.id === id);
+  window.scrollTo(0, 0);
+  app.style.maxWidth = game && game.wide ? "1380px" : "";
+  if (!game) return renderShelf();
+  app.innerHTML = "";
+  const bar = h(`<div class="topbar"><button class="back" id="back-btn">← Shelf</button><h2>${esc(game.title)}</h2></div>`);
+  const stage = h(`<div class="stage"></div>`);
+  app.append(bar, stage);
+  $("#back-btn").onclick = () => { location.hash = ""; };
+  current = game.mount(stage);
+  document.title = game.title + " · Game Shelf";
+}
+
+function renderShelf() {
+  document.title = "Game Shelf";
+  const view = store.get("view", "grid");
+  app.innerHTML = `
+    <header class="shelf-head">
+      <img src="${ICON}" alt="">
+      <div class="grow"><h1>Game Shelf</h1><div class="count">${GAMES.length} games</div></div>
+      <div class="seg" role="group" aria-label="View">
+        <button id="v-list" aria-pressed="${view === "list"}">☰ List</button>
+        <button id="v-grid" aria-pressed="${view === "grid"}">▦ Grid</button>
+      </div>
+    </header>
+    <main id="shelf"></main>
+    <p class="shelf-foot">Game theory, one small game at a time.</p>`;
+  const shelf = $("#shelf");
+  if (view === "grid") {
+    shelf.className = "grid";
+    shelf.innerHTML = GAMES.map((g) => `<button class="tile" data-id="${g.id}" title="${esc(g.description)}">${g.icon}<span class="t">${esc(g.title)}</span><span class="p">${esc(g.players)}</span></button>`).join("");
+  } else {
+    shelf.className = "list";
+    shelf.innerHTML = GAMES.map((g) => `<button class="row" data-id="${g.id}">${g.icon}<span class="info"><span class="t">${esc(g.title)}<span class="p">· ${esc(g.players)}</span></span><br><span class="d">${esc(g.description)}</span></span><span class="play">Play</span></button>`).join("");
+  }
+  shelf.onclick = (e) => { const b = e.target.closest("[data-id]"); if (b) location.hash = b.dataset.id; };
+  $("#v-list").onclick = () => { store.set("view", "list"); renderShelf(); };
+  $("#v-grid").onclick = () => { store.set("view", "grid"); renderShelf(); };
+}
+
+/* ================================================================ Coins in a Line */
+function greedyMove(c) { return c[0] >= c[c.length - 1] ? "L" : "R"; }
+function optimalMove(c) {
+  // adv[i][j] = best (mover - opponent) margin on c[i..j] with perfect play
+  const n = c.length;
+  if (n === 1) return "L";
+  const adv = Array.from({ length: n }, () => new Float64Array(n));
+  for (let i = 0; i < n; i++) adv[i][i] = c[i];
+  for (let len = 2; len <= n; len++)
+    for (let i = 0; i + len - 1 < n; i++) {
+      const j = i + len - 1;
+      adv[i][j] = Math.max(c[i] - adv[i + 1][j], c[j] - adv[i][j - 1]);
+    }
+  return c[0] - adv[1][n - 1] >= c[n - 1] - adv[0][n - 2] ? "L" : "R";
+}
+
+function coinsGame(root) {
+  const saved = store.get("coins.settings", { mode: "ai", diff: "hard", first: "you", n: 10 });
+  root.innerHTML = `
+    <div class="ctrls">
+      <label class="field">Mode<select id="c-mode"><option value="ai">vs Computer</option><option value="pvp">2 Players</option></select></label>
+      <label class="field">Difficulty<select id="c-diff"><option value="easy">Easy</option><option value="hard">Hard</option></select></label>
+      <label class="field">First<select id="c-first"><option value="you">You</option><option value="cpu">Computer</option></select></label>
+      <label class="field">Coins<input id="c-n" type="number" min="2" max="100" inputmode="numeric" style="width:84px"></label>
+      <button class="btn primary" id="c-new">New game</button>
+    </div>
+    <div class="board" id="c-board">
+      <div class="tray" id="tray-top"><div class="who"><div class="name"></div><div class="score">0</div></div><div class="haul"></div></div>
+      <div class="status" id="c-status" aria-live="polite"></div>
+      <div class="pile-area" id="c-area"><div class="pile" id="c-pile"></div></div>
+      <div class="tray" id="tray-bot"><div class="who"><div class="name"></div><div class="score">0</div></div><div class="haul"></div></div>
+    </div>`;
+  const el = { mode: $("#c-mode", root), diff: $("#c-diff", root), first: $("#c-first", root), n: $("#c-n", root) };
+  el.mode.value = saved.mode; el.diff.value = saved.diff; el.first.value = saved.first; el.n.value = saved.n;
+  const sync = () => { const ai = el.mode.value === "ai"; el.diff.disabled = !ai; el.first.disabled = !ai; };
+  el.mode.onchange = sync; sync();
+
+  const board = $("#c-board", root), pile = $("#c-pile", root), area = $("#c-area", root), statusEl = $("#c-status", root);
+  const trays = { top: $("#tray-top", root), bot: $("#tray-bot", root) };
+  let S = null, gen = 0;
+  const later = (ms, fn) => { const g = gen; setTimeout(() => { if (g === gen) fn(); }, REDUCED ? 0 : ms); };
+
+  function layout() {
+    if (!S) return;
+    const n0 = S.n0, W = area.clientWidth, maxH = Math.max(200, innerHeight * 0.42);
+    let s = 64, g = 8, per = 1, rows = 1;
+    for (s = 64; s >= 22; s--) {
+      g = Math.max(4, Math.round(s * 0.16));
+      per = Math.max(1, Math.floor((W + g) / (s + g)));
+      rows = Math.ceil(n0 / per);
+      if (rows * (s + g) <= maxH) break;
+    }
+    if (s < 22) {               // nothing fit: use the smallest size and let the page scroll
+      s = 22; g = 4; per = Math.max(1, Math.floor((W + g) / (s + g))); rows = Math.ceil(n0 / per);
+    }
+    per = Math.ceil(n0 / rows);
+    pile.style.setProperty("--s", s + "px"); pile.style.setProperty("--g", g + "px");
+    pile.style.width = per * (s + g) - g + "px";
+    const hw = trays.bot.querySelector(".haul").clientWidth, m = Math.ceil(n0 / 2);
+    let ts = Math.min(s, 44);
+    for (; ts > 16; ts--) { const perT = Math.max(1, Math.floor((hw + 4) / (ts + 4))); if (Math.ceil(m / perT) <= 2) break; }
+    board.style.setProperty("--ts", ts + "px");
+  }
+
+  function newGame() {
+    gen++;
+    let n = parseInt(el.n.value, 10); if (!(n >= 2)) n = 10; n = Math.min(100, n); el.n.value = n;
+    const mode = el.mode.value, ai = mode === "ai";
+    store.set("coins.settings", { mode, diff: el.diff.value, first: el.first.value, n });
+    const aiFirst = ai && el.first.value === "cpu";
+    S = {
+      n0: n, coins: [], scores: [0, 0], turn: 0, locked: true,
+      ai: ai ? (el.diff.value === "hard" ? optimalMove : greedyMove) : null,
+      aiSeat: ai ? (aiFirst ? 0 : 1) : -1,
+      names: ai ? (aiFirst ? ["Computer", "You"] : ["You", "Computer"]) : ["Player 1", "Player 2"],
+    };
+    S.seatTray = ai ? (aiFirst ? ["top", "bot"] : ["bot", "top"]) : ["bot", "top"];
+    board.querySelector(".result")?.remove();
+    for (const seat of [0, 1]) {
+      const t = trays[S.seatTray[seat]];
+      t.querySelector(".name").textContent = S.names[seat];
+      t.querySelector(".score").textContent = "0";
+      t.querySelector(".haul").innerHTML = "";
+    }
+    pile.innerHTML = "";
+    layout();
+    const stag = Math.min(30, 1200 / n);
+    for (let k = 0; k < n; k++) {
+      const v = 1 + Math.floor(Math.random() * 25);
+      const c = h(`<button class="coin" tabindex="-1">${v}</button>`);
+      c.addEventListener("click", () => onCoin(c));
+      pile.append(c);
+      S.coins.push({ v, el: c });
+      if (!REDUCED) c.animate([{ transform: "translateY(-40px) scale(.6)", opacity: 0 }, { transform: "none", opacity: 1 }],
+        { duration: 380, delay: k * stag, easing: "cubic-bezier(.2,.8,.3,1)", fill: "backwards" });
+    }
+    statusEl.textContent = "Dealing…";
+    later(n * stag + 400, nextTurn);
+  }
+
+  const humanTurn = () => S && S.coins.length && !S.locked && S.turn !== S.aiSeat;
+  function markEnds() {
+    S.coins.forEach((c) => { c.el.classList.remove("end"); c.el.tabIndex = -1; c.el.removeAttribute("aria-label"); });
+    if (!humanTurn()) return;
+    const ends = [S.coins[0], S.coins[S.coins.length - 1]];
+    ends.forEach((c, i) => { c.el.classList.add("end"); c.el.tabIndex = 0; c.el.setAttribute("aria-label", `Take ${i ? "right" : "left"} coin, ${c.v}`); });
+  }
+  function setActive() {
+    for (const seat of [0, 1]) trays[S.seatTray[seat]].querySelector(".name").classList.toggle("active", seat === S.turn && S.coins.length > 0);
+  }
+  function nextTurn() {
+    if (!S.coins.length) return endGame();
+    setActive();
+    if (S.turn === S.aiSeat) {
+      S.locked = true; markEnds();
+      statusEl.textContent = "Computer is thinking…";
+      later(650, () => take(S.ai(S.coins.map((c) => c.v))));
+    } else {
+      S.locked = false;
+      statusEl.textContent = S.ai ? "Your turn. Tap an end coin (or press ← / →)." : `${S.names[S.turn]}'s turn. Tap an end coin.`;
+      markEnds();
+    }
+  }
+  function onCoin(c) {
+    if (!humanTurn()) return;
+    if (c === S.coins[0].el) take("L"); else if (c === S.coins[S.coins.length - 1].el) take("R");
+  }
+  function take(side) {
+    S.locked = true; markEnds();
+    const idx = side === "L" ? 0 : S.coins.length - 1;
+    const coin = S.coins.splice(idx, 1)[0], seat = S.turn;
+    const first = S.coins.map((c) => c.el.getBoundingClientRect());
+    const fr = coin.el.getBoundingClientRect();
+    const tray = trays[S.seatTray[seat]];
+    tray.querySelector(".haul").append(coin.el);
+    const lr = coin.el.getBoundingClientRect();
+    const D = REDUCED ? 0 : 480;
+    if (D) {
+      const dx = fr.left + fr.width / 2 - (lr.left + lr.width / 2), dy = fr.top + fr.height / 2 - (lr.top + lr.height / 2);
+      coin.el.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${fr.width / lr.width})` }, { transform: "none" }],
+        { duration: D, easing: "cubic-bezier(.3,.7,.2,1)" });
+      S.coins.forEach((c, i) => {
+        const r = c.el.getBoundingClientRect(), ddx = first[i].left - r.left, ddy = first[i].top - r.top;
+        if (ddx || ddy) c.el.animate([{ transform: `translate(${ddx}px, ${ddy}px)` }, { transform: "none" }], { duration: 360, easing: "ease-out" });
+      });
+    }
+    later(D, () => {
+      S.scores[seat] += coin.v;
+      tray.querySelector(".score").textContent = S.scores[seat];
+      const pop = h(`<span class="pop">+${coin.v}</span>`);
+      tray.querySelector(".who").append(pop);
+      pop.animate([{ transform: "translateY(0)", opacity: 1 }, { transform: "translateY(-26px)", opacity: 0 }], { duration: REDUCED ? 1 : 700 }).onfinish = () => pop.remove();
+      S.turn ^= 1;
+      nextTurn();
+    });
+  }
+  function endGame() {
+    setActive();
+    statusEl.textContent = "";
+    const [a, b] = S.scores;
+    const msg = a === b ? "Tie!" : (a > b ? S.names[0] : S.names[1]) === "You" ? "You win!" : `${a > b ? S.names[0] : S.names[1]} wins!`;
+    const r = h(`<div class="result"><div class="card"><h3>${msg}</h3><div class="num dim">${S.names[0]} ${a} – ${b} ${S.names[1]}</div><button class="btn primary">Play again</button></div></div>`);
+    r.querySelector("button").onclick = newGame;
+    board.append(r);
+    if (!REDUCED) r.querySelector(".card").animate([{ transform: "translateY(-30px)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 400, easing: "ease-out" });
+  }
+  const onKey = (e) => {
+    if (!humanTurn() || e.target.matches("input, select")) return;
+    if (e.key === "ArrowLeft") { e.preventDefault(); take("L"); }
+    if (e.key === "ArrowRight") { e.preventDefault(); take("R"); }
+  };
+  const onResize = () => layout();
+  addEventListener("keydown", onKey);
+  addEventListener("resize", onResize);
+  $("#c-new", root).onclick = newGame;
+  newGame();
+  return { unmount() { gen++; removeEventListener("keydown", onKey); removeEventListener("resize", onResize); } };
+}
+
+/* ================================================================ Two Rooms (CHSH) */
+const CLASSICAL_LIMIT = 0.75;
+const QUANTUM_LIMIT = Math.cos(Math.PI / 8) ** 2; // 0.8536, Tsirelson
+const COIN = ["Heads", "Tails"];
+const COLOR = ["Red", "Blue"];
+const needDiffer = (x, y) => x === 1 && y === 1;
+const wins = (x, y, a, b) => (a !== b) === needDiffer(x, y);
+const flip = () => (Math.random() < 0.5 ? 0 : 1);
+// Shared |Φ+> pair measured along real angles θA, θB: P(same outcome) = cos²(θA − θB).
+const pSame = (ta, tb) => Math.cos(((ta - tb) * Math.PI) / 180) ** 2;
+
+function binomTail(n, k, p) { // P(X >= k), X ~ Bin(n, p)
+  if (k <= 0) return 1;
+  if (k > n) return 0;
+  const lr = Math.log(p / (1 - p));
+  let lp = n * Math.log(1 - p), terms = [];
+  for (let i = 0; i <= n; i++) {
+    if (i >= k) terms.push(lp);
+    lp += Math.log((n - i) / (i + 1)) + lr;
+  }
+  const m = Math.max(...terms);
+  return Math.min(1, Math.exp(m) * terms.reduce((s, t) => s + Math.exp(t - m), 0));
+}
+const pct = (x, d = 1) => (100 * x).toFixed(d) + "%";
+
+function roomsGame(root, quantum) {
+  const key = quantum ? "entangled" : "rooms";
+  const prefs = store.get(key + ".prefs", { names: ["Alice", "Bob"], rounds: 20 });
+  let S = null;
+
+  function chip(kind, i) { return kind === "coin" ? `<span class="chip ${i ? "coin-t" : "coin-h"}">${COIN[i]}</span>` : `<span class="chip ${i ? "blue" : "red"}">${COLOR[i]}</span>`; }
+
+  /* ---------- setup ---------- */
+  function setup() {
+    root.innerHTML = `<div class="room">
+      <section class="panel rules">
+        <h3>How it works</h3>
+        <p>You and your partner each sit in a separate room. Every round, each of you flips your own coin and sees only your own result. Then ${quantum
+          ? "each of you sets a dial and measures your half of a shared entangled pair. The measurement comes out <b>Red</b> or <b>Blue</b> at random, but your two results are correlated in a way that depends on both dials."
+          : "each of you answers <b>Red</b> or <b>Blue</b>."}</p>
+        <div class="scroll-x"><table class="case-table">
+          <thead><tr><th>Coins</th><th>You score if your colors…</th></tr></thead>
+          <tbody><tr><td>Heads + Heads</td><td>match</td></tr><tr><td>Heads + Tails</td><td>match</td></tr><tr><td>Tails + Heads</td><td>match</td></tr><tr><td>Tails + Tails</td><td><b>differ</b></td></tr></tbody>
+        </table></div>
+        <p class="note">Plan your strategy together now. Once round one starts, no talking, no signals.</p>
+      </section>
+      ${quantum ? `<details class="panel"><summary>The physics of the pair</summary>
+        <p>Each round you share a fresh pair of particles in the entangled state |Φ⁺⟩. Your dial sets the angle θ you measure your particle along (0°–180°). Each result on its own is a fair 50/50 coin, but the two results agree with probability</p>
+        <p class="num" style="text-align:center;font-size:1.2rem">P(same color) = cos²(θ<sub>A</sub> − θ<sub>B</sub>)</p>
+        <p class="dim">Whoever measures first gets a random color; the other's result is then drawn from that rule. No information passes between rooms: the result alone tells you nothing about your partner's coin or dial.</p></details>` : ""}
+      <section class="panel" style="display:grid;gap:14px">
+        <div class="setup-row">
+          <label class="field">Player A<input id="r-a" maxlength="16" value="${esc(prefs.names[0])}"></label>
+          <label class="field">Player B<input id="r-b" maxlength="16" value="${esc(prefs.names[1])}"></label>
+          <label class="field">Rounds<input id="r-n" type="number" min="1" max="500" inputmode="numeric" value="${prefs.rounds}"></label>
+        </div>
+        <button class="btn primary big" id="r-start">Start round 1</button>
+      </section>
+      <details class="panel"><summary>Test a strategy</summary>
+        <p class="dim" style="margin-top:0">Hand-played games are short, so luck is large. Write down a fixed strategy for each player and run it for many rounds at once.</p>
+        <div class="strat">
+          <span></span><span class="h">If my coin is Heads</span><span class="h">If my coin is Tails</span>
+          ${[0, 1].map((p) => `<span class="h">${p ? "Player B" : "Player A"}</span>${[0, 1].map((x) => quantum
+            ? `<input id="s-${p}${x}" type="number" step="0.5" min="0" max="180" value="0" aria-label="Player ${p ? "B" : "A"} angle for ${COIN[x]}">`
+            : `<select id="s-${p}${x}" aria-label="Player ${p ? "B" : "A"} answer for ${COIN[x]}"><option value="0">Red</option><option value="1">Blue</option></select>`).join("")}`).join("")}
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:14px">
+          <label class="field">Rounds to simulate<input id="s-n" type="number" min="10" max="100000" value="2000" inputmode="numeric" style="width:120px"></label>
+          <button class="btn" id="s-run">Run strategy</button>
+        </div>
+        ${quantum ? '<p class="dim" style="margin-bottom:0">Angles in degrees.</p>' : ""}
+      </details>
+    </div>`;
+    const saveNames = () => {
+      const names = [$("#r-a", root).value.trim() || "Player A", $("#r-b", root).value.trim() || "Player B"];
+      let n = parseInt($("#r-n", root).value, 10); if (!(n >= 1)) n = 20; n = Math.min(500, n);
+      store.set(key + ".prefs", { names, rounds: n });
+      return { names, n };
+    };
+    $("#r-start", root).onclick = () => {
+      const { names, n } = saveNames();
+      S = { names, total: n, history: [], lastAngle: [0, 0], cur: null, simulated: false };
+      startRound();
+    };
+    $("#s-run", root).onclick = () => {
+      const { names } = saveNames();
+      let n = parseInt($("#s-n", root).value, 10); if (!(n >= 10)) n = 2000; n = Math.min(100000, n);
+      const strat = [0, 1].map((p) => [0, 1].map((x) => parseFloat($(`#s-${p}${x}`, root).value) || 0));
+      const history = [];
+      for (let i = 0; i < n; i++) {
+        const x = flip(), y = flip();
+        let a, b, ta, tb;
+        if (quantum) { ta = strat[0][x]; tb = strat[1][y]; a = flip(); b = Math.random() < pSame(ta, tb) ? a : 1 - a; }
+        else { a = strat[0][x]; b = strat[1][y]; }
+        history.push({ x, y, a, b, ta, tb });
+      }
+      S = { names, total: n, history, simulated: true, strat };
+      results();
+    };
+  }
+
+  /* ---------- rounds ---------- */
+  function startRound() {
+    S.cur = { x: flip(), y: flip() };
+    handoff(0);
+  }
+  function roundTag() { return `Round ${S.history.length + 1} of ${S.total}`; }
+  function handoff(p) {
+    const other = S.names[1 - p];
+    root.innerHTML = `<div class="room"><div class="center handoff">
+      <div class="round-tag">${roundTag()}</div>
+      <div class="dim">Pass the device to</div>
+      <div class="big-name">${esc(S.names[p])}</div>
+      <div class="dim">${esc(other)}, look away until called.</div>
+      <button class="btn primary big" id="go">I'm ${esc(S.names[p])}, show my coin</button>
+    </div></div>`;
+    $("#go", root).onclick = () => privateTurn(p);
+  }
+  function privateTurn(p) {
+    const x = p ? S.cur.y : S.cur.x;
+    root.innerHTML = `<div class="room"><div class="center">
+      <div class="round-tag">${roundTag()} · ${esc(S.names[p])}'s room</div>
+      <div class="dim">Your coin landed</div>
+      <div class="flip"><div class="inner"><div class="face">${COIN[x]}</div></div></div>
+      <div id="act" style="width:100%"></div>
+    </div></div>`;
+    const act = $("#act", root);
+    if (!quantum) {
+      act.innerHTML = `<div class="dim" style="margin-bottom:10px">Choose your color</div><div class="answers"><button class="ans red" data-a="0">Red</button><button class="ans blue" data-a="1">Blue</button></div>`;
+      act.onclick = (e) => { const b = e.target.closest("[data-a]"); if (b) lockIn(p, +b.dataset.a); };
+    } else {
+      const dial = makeDial(S.lastAngle[p]);
+      act.append(dial.el);
+      const m = h(`<button class="btn primary big" style="margin-top:14px">Measure</button>`);
+      act.append(m);
+      m.onclick = () => {
+        const t = dial.value();
+        S.lastAngle[p] = t;
+        let outcome;
+        if (p === 0) { outcome = flip(); S.cur.ta = t; }
+        else { S.cur.tb = t; outcome = Math.random() < pSame(S.cur.ta, t) ? S.cur.a : 1 - S.cur.a; }
+        lockIn(p, outcome, t);
+      };
+    }
+  }
+  function lockIn(p, ans, theta) {
+    if (p === 0) S.cur.a = ans; else S.cur.b = ans;
+    root.innerHTML = `<div class="room"><div class="center handoff">
+      <div class="round-tag">${roundTag()} · ${esc(S.names[p])}'s room</div>
+      ${quantum ? `<div class="dim">Measured at <span class="num">${theta}°</span>. Your result:</div>` : `<div class="dim">You chose</div>`}
+      <div style="transform:scale(1.6);margin:10px 0">${chip("color", ans)}</div>
+      <button class="btn primary big" id="go">${p === 0 ? "Hide this and pass the device" : "Hide this and call " + esc(S.names[0]) + " back"}</button>
+    </div></div>`;
+    $("#go", root).onclick = () => (p === 0 ? handoff(1) : reveal());
+  }
+  function reveal() {
+    const { x, y, a, b, ta, tb } = S.cur;
+    const w = wins(x, y, a, b);
+    S.history.push({ x, y, a, b, ta, tb });
+    const score = S.history.filter((r) => wins(r.x, r.y, r.a, r.b)).length;
+    const side = (p, coin, ans, t) => `<div class="panel"><b>${esc(S.names[p])}</b><div>Coin: ${chip("coin", coin)}</div><div>${quantum ? `Dial: <span class="num">${t}°</span>` : ""}</div><div>Color: ${chip("color", ans)}</div></div>`;
+    const done = S.history.length >= S.total;
+    root.innerHTML = `<div class="room">
+      <div class="center"><div class="round-tag">Round ${S.history.length} of ${S.total}</div>
+      <div class="verdict ${w ? "win" : "miss"}">${w ? "Point!" : "No point"}</div>
+      <div class="dim">${needDiffer(x, y) ? "Both coins were Tails, so your colors needed to differ." : "At least one coin was Heads, so your colors needed to match."}</div></div>
+      <div class="reveal-grid">${side(0, x, a, ta)}${side(1, y, b, tb)}</div>
+      <div class="center"><div class="num">Score: ${score} / ${S.history.length} (${pct(score / S.history.length, 0)})</div>
+      <button class="btn primary big" id="go">${done ? "See results" : "Next round"}</button></div>
+    </div>`;
+    $("#go", root).onclick = () => (done ? results() : startRound());
+  }
+
+  /* ---------- results ---------- */
+  function results() {
+    const H = S.history, n = H.length;
+    const k = H.filter((r) => wins(r.x, r.y, r.a, r.b)).length;
+    const rate = k / n;
+    const cells = [[0, 0], [0, 1], [1, 0], [1, 1]].map(([x, y]) => {
+      const rs = H.filter((r) => r.x === x && r.y === y);
+      const same = rs.filter((r) => r.a === r.b).length;
+      const pts = rs.filter((r) => wins(r.x, r.y, r.a, r.b)).length;
+      return { x, y, n: rs.length, same, pts, E: rs.length ? (2 * same - rs.length) / rs.length : null };
+    });
+    const haveAll = cells.every((c) => c.n > 0);
+    const Sval = haveAll ? cells[0].E + cells[1].E + cells[2].E - cells[3].E : null;
+    const tail = binomTail(n, k, CLASSICAL_LIMIT);
+    const luck = rate <= CLASSICAL_LIMIT
+      ? `That's at or below the classical limit, so there's nothing to explain.`
+      : `If you were playing a perfect classical strategy (75% per round), a score of ${k}/${n} or better would happen ${tail < 0.001 ? "less than 0.1%" : pct(tail)} of the time.${tail < 0.01 ? " That's very unlikely to be luck." : tail < 0.05 ? " Unlikely, but not impossible, to be luck." : " Luck could easily explain it."}`;
+    const bench = quantum
+      ? `The best possible strategy averages <b>${pct(QUANTUM_LIMIT)}</b> with entanglement. Without it, no strategy can average more than <b>75%</b>.`
+      : `The best possible strategy averages <b>75%</b>. No classical strategy can do better on average.`;
+    const meterPct = Math.max(0, Math.min(100, rate * 100));
+    root.innerHTML = `<div class="room">
+      <section class="panel center">
+        <div class="round-tag">${S.simulated ? `Simulated: ${n.toLocaleString()} rounds of a fixed strategy` : `${esc(S.names[0])} & ${esc(S.names[1])}, ${n} rounds`}</div>
+        <div class="big-rate">${pct(rate)}</div>
+        <div class="dim">${k} points in ${n} rounds</div>
+      </section>
+      <section class="panel">
+        <h3>Compared with the limits</h3>
+        <div class="meter" role="img" aria-label="Your win rate ${pct(rate)} against the 75% classical and ${pct(QUANTUM_LIMIT)} quantum limits">
+          <div class="fill" style="width:${meterPct}%"></div>
+          <div class="mark top" style="left:75%"><span>classical 75%</span></div>
+          <div class="mark bot" style="left:${QUANTUM_LIMIT * 100}%"><span>quantum ${pct(QUANTUM_LIMIT)}</span></div>
+        </div>
+        <p style="margin:0">${bench}</p>
+        <p class="dim" style="margin-bottom:0">${luck}</p>
+      </section>
+      <section class="panel">
+        <h3>Where the points came from</h3>
+        <div class="scroll-x"><table class="case-table">
+          <thead><tr><th>Coins (A + B)</th><th>Needed</th><th class="num">Rounds</th><th class="num">Same color</th><th class="num">Points</th></tr></thead>
+          <tbody>${cells.map((c) => `<tr><td>${COIN[c.x]} + ${COIN[c.y]}</td><td>${needDiffer(c.x, c.y) ? "differ" : "match"}</td><td class="num">${c.n}</td><td class="num">${c.n ? pct(c.same / c.n, 0) : "–"}</td><td class="num">${c.pts}</td></tr>`).join("")}</tbody>
+        </table></div>
+        <div class="stat-row" style="margin-top:14px">
+          <div class="stat"><div class="k">CHSH value S</div><div class="v">${haveAll ? Sval.toFixed(3) : "–"}</div></div>
+          <div class="stat"><div class="k">Classical max</div><div class="v">2</div></div>
+          <div class="stat"><div class="k">Quantum max</div><div class="v">${(2 * Math.SQRT2).toFixed(3)}</div></div>
+        </div>
+        <p class="dim" style="margin-bottom:0">${haveAll
+          ? "S adds up how strongly your colors agreed for each coin pair, counting the Tails + Tails pair against you. It's the standard measure of correlation for this game: win rate = 1/2 + S/8 on average."
+          : "S needs at least one round of every coin pair. Play more rounds to see it."}</p>
+      </section>
+      ${S.simulated ? "" : `<details class="panel"><summary>Round by round</summary><div class="scroll-x"><table class="case-table log">
+        <thead><tr><th>#</th><th>A coin</th><th>B coin</th>${quantum ? "<th>A dial</th><th>B dial</th>" : ""}<th>A</th><th>B</th><th>Point</th></tr></thead>
+        <tbody>${H.map((r, i) => `<tr><td>${i + 1}</td><td>${COIN[r.x][0]}</td><td>${COIN[r.y][0]}</td>${quantum ? `<td>${r.ta}°</td><td>${r.tb}°</td>` : ""}<td>${COLOR[r.a]}</td><td>${COLOR[r.b]}</td><td>${wins(r.x, r.y, r.a, r.b) ? "✓" : "–"}</td></tr>`).join("")}</tbody>
+      </table></div></details>`}
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center">
+        ${S.simulated ? "" : '<button class="btn primary" id="again">Play again</button>'}
+        <button class="btn" id="setup">${S.simulated ? "Back to setup" : "Change settings"}</button>
+      </div>
+    </div>`;
+    if (!S.simulated) $("#again", root).onclick = () => { S = { names: S.names, total: S.total, history: [], lastAngle: S.lastAngle, cur: null }; startRound(); };
+    $("#setup", root).onclick = setup;
+  }
+
+  /* ---------- measurement dial ---------- */
+  function makeDial(start) {
+    let theta = start;
+    const el = h(`<div class="dial-wrap">
+      <div class="dim">Set your measurement angle</div>
+      <svg class="dial" viewBox="-110 -110 220 220" role="img" aria-label="Measurement dial">
+        <circle r="100" fill="#16243f" stroke="#2b4270" stroke-width="2"/>
+        ${Array.from({ length: 24 }, (_, i) => { const a = i * 15, r1 = a % 45 ? 92 : 86, rad = (a * Math.PI) / 180;
+          return `<line x1="${(Math.sin(rad) * r1).toFixed(1)}" y1="${(-Math.cos(rad) * r1).toFixed(1)}" x2="${(Math.sin(rad) * 99).toFixed(1)}" y2="${(-Math.cos(rad) * 99).toFixed(1)}" stroke="#93a1bd" stroke-width="${a % 45 ? 1 : 2}"/>`; }).join("")}
+        <g class="needle"><line x1="0" y1="-88" x2="0" y2="88" stroke="#5ad1a6" stroke-width="6" stroke-linecap="round"/><circle r="9" fill="#e8b931"/></g>
+        ${[0, 45, 90, 135].map((a) => { const rad = (a * Math.PI) / 180; return `<text x="${(Math.sin(rad) * 72).toFixed(1)}" y="${(-Math.cos(rad) * 72 + 4).toFixed(1)}" fill="#93a1bd" font-size="11" text-anchor="middle" font-family="JetBrains Mono, monospace" stroke="#16243f" stroke-width="4" paint-order="stroke" pointer-events="none">${a}°</text>`; }).join("")}
+      </svg>
+      <div class="dial-read" aria-live="polite"></div>
+      <input type="range" min="0" max="179.5" step="0.5" aria-label="Angle in degrees">
+      <div class="nudges"><button data-d="-5">−5</button><button data-d="-0.5">−½</button><button data-d="0.5">+½</button><button data-d="5">+5</button></div>
+    </div>`);
+    const needle = el.querySelector(".needle"), read = el.querySelector(".dial-read"), range = el.querySelector("input"), svg = el.querySelector("svg");
+    const set = (t) => {
+      theta = ((Math.round(t * 2) / 2) % 180 + 180) % 180;
+      needle.setAttribute("transform", `rotate(${theta})`);
+      read.textContent = `θ = ${theta}°`;
+      range.value = theta;
+    };
+    const fromPointer = (e) => {
+      const r = svg.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      set((Math.atan2(dx, -dy) * 180) / Math.PI);
+    };
+    let drag = false;
+    svg.addEventListener("pointerdown", (e) => { drag = true; svg.setPointerCapture(e.pointerId); fromPointer(e); });
+    svg.addEventListener("pointermove", (e) => { if (drag) fromPointer(e); });
+    svg.addEventListener("pointerup", () => { drag = false; });
+    range.addEventListener("input", () => set(+range.value));
+    el.querySelector(".nudges").addEventListener("click", (e) => { const b = e.target.closest("[data-d]"); if (b) set(theta + +b.dataset.d); });
+    set(theta);
+    return { el, value: () => theta };
+  }
+
+  setup();
+  return { unmount() {} };
+}
+
+/* ================================================================ Troop Politics */
+/* ---- Troop Politics (generated by embed_troop.py; do not edit by hand) ---- */
+const TROOP = { fonts: "https://fonts.googleapis.com/css2?family=Young+Serif&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap", css: "\n/* Layout: a topographic field map of the range, with an instrument column beside it; stacks below 980px */\n:host{\n  --bg:#E9ECE4; --panel:#F5F6F1; --ink:#1D2420; --muted:#5C665F; --rule:#CBD1C6;\n  --landlo:#DCE2D0; --landhi:#B7C29E; --water:#B9CED2;\n  --ally:#1C7566; --hostile:#BF4029; --food:#5F7F22; --accent:#A86B12; --neutral:#8C948E;\n  --f-display:\"Young Serif\", Georgia, \"Times New Roman\", serif;\n  --f-body:\"IBM Plex Sans\", system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  --f-mono:\"IBM Plex Mono\", ui-monospace, \"SF Mono\", Menlo, monospace;\n}\n\n\n:host{display:block;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5}\n*{box-sizing:border-box}\n.wrap{max-width:1380px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:grid;gap:18px}\n.top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 32px;align-items:end;border-bottom:1px solid var(--rule);padding-bottom:14px}\n.eyebrow{margin:0;font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}\nh1{margin:2px 0 0;font-family:var(--f-display);font-weight:400;font-size:clamp(28px,4vw,40px);line-height:1.05;text-wrap:balance}\n.dek{margin:0;max-width:68ch;color:var(--muted);justify-self:end}\n@media (max-width:760px){.top{grid-template-columns:1fr}.dek{justify-self:start}}\n\n.main{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:18px;align-items:start}\n@media (max-width:980px){.main{grid-template-columns:minmax(0,1fr)}}\n.mapcol{display:grid;gap:12px;min-width:0}\n.mapcard{position:relative;border:1px solid var(--rule);background:var(--panel);border-radius:6px;overflow:hidden}\n#map{display:block;width:100%;aspect-ratio:10/7;max-width:100%;cursor:default;touch-action:manipulation}\n.daytag{position:absolute;left:10px;top:8px;font-family:var(--f-mono);font-size:12px;color:var(--ink);background:color-mix(in srgb,var(--panel) 82%,transparent);padding:2px 8px;border-radius:3px;font-variant-numeric:tabular-nums;pointer-events:none}\n.compass{position:absolute;right:10px;bottom:8px;font-family:var(--f-mono);font-size:10px;color:var(--muted);pointer-events:none}\n\n.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}\n.btn,.seg button{font:500 13px/1 var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:8px 12px;cursor:pointer}\n.btn:hover,.seg button:hover{border-color:var(--muted)}\n.btn.primary{background:var(--ink);color:var(--panel);border-color:var(--ink);min-width:78px}\n.seg{display:inline-flex}\n.seg button{border-radius:0;margin-left:-1px}\n.seg button:first-child{border-radius:4px 0 0 4px;margin-left:0}\n.seg button:last-child{border-radius:0 4px 4px 0}\n.seg button[aria-pressed=\"true\"]{background:var(--ink);color:var(--panel);border-color:var(--ink);position:relative}\n.seglabel{font-family:var(--f-mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-right:6px}\n.chk{display:inline-flex;gap:6px;align-items:center;font-size:13px;cursor:pointer}\n.chk input{accent-color:var(--accent)}\nbutton:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}\n\n.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--muted)}\n.legend span{display:inline-flex;align-items:center;gap:6px}\n.lg-line{width:22px;height:0;border-top:2px solid}\n.lg-ally{border-color:var(--ally)}.lg-host{border-color:var(--hostile)}\n.lg-dash{border-top:2px dashed var(--muted)}\n.lg-sq{width:10px;height:10px;background:var(--food);opacity:.6;border:1px solid var(--food)}\n.lg-terr{border-top:2px dashed var(--ink);opacity:.6}\n.lg-dep{width:10px;height:10px;border-radius:50%;background:var(--ally);opacity:.45}\n.lg-dot{width:10px;height:10px;border-radius:50%;background:var(--food);opacity:.7}\n\n.lower{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}\n@media (max-width:640px){.lower{grid-template-columns:minmax(0,1fr)}}\n.panel{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:14px;min-width:0}\n.panel h2{margin:0 0 10px;font-family:var(--f-mono);font-weight:500;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px}\n.side{display:grid;gap:12px;min-width:0}\n\n.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}\n.stat .lab{font-size:11px;color:var(--muted);letter-spacing:.04em}\n.stat .val{font-family:var(--f-display);font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}\n.stat .sub{font-size:11px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}\n.stat canvas{display:block;width:100%;height:28px;margin-top:4px}\n\n.log{list-style:none;margin:0;padding:0;font-family:var(--f-mono);font-size:12px;display:grid;gap:4px;max-height:212px;overflow:auto}\n.log li{display:grid;grid-template-columns:52px 8px minmax(0,1fr);gap:8px;align-items:baseline}\n.log .t{color:var(--muted);font-variant-numeric:tabular-nums}\n.log .d{width:7px;height:7px;border-radius:50%;background:var(--neutral);transform:translateY(-1px)}\n.log .politics .d{background:var(--ink);border-radius:1px}.log .territory .d{background:var(--food);border-radius:1px}.log .display .d{background:var(--accent)}.log .fight .d{background:var(--hostile)}.log .birth .d{background:var(--ally)}.log .contact .d{background:var(--accent)}\n.empty{color:var(--muted);font-size:13px;margin:0}\n\n.facs{list-style:none;margin:0;padding:0;display:grid;gap:6px}\n.facs li{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13px}\n.facs button{all:unset;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.facs button:hover{text-decoration:underline}\n.facs button:focus-visible{outline:2px solid var(--accent)}\n.sw{width:12px;height:12px;border-radius:50%}\n.fid{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-right:6px}\n.panel h2.sub{margin-top:14px}\n.relsl{list-style:none;margin:0;padding:0;display:grid;gap:5px}\n.relsl li{display:grid;grid-template-columns:58px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13px}\n.relsl li.er{display:block}\n.relsl .n{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}\n.rk{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:3px;text-align:center}\n.rk.ally{color:var(--ally);border:1px solid var(--ally)}.rk.rival{color:var(--hostile);border:1px solid var(--hostile)}\n.facs .n{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}\n\n.insp-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}\n.insp-name{font-family:var(--f-display);font-size:22px;display:flex;align-items:center;gap:8px}\n.insp-meta{font-size:12px;color:var(--muted)}\n.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;font-size:12px;margin:8px 0 10px}\n.kv dt{color:var(--muted)}.kv dd{margin:0;font-variant-numeric:tabular-nums}\n.rel-h{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:10px 0 4px}\n.rels{display:grid;gap:3px}\n.rel{display:grid;grid-template-columns:72px minmax(0,1fr) 40px;gap:8px;align-items:center;font-size:12px}\n.rel button{all:unset;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.rel button:hover{text-decoration:underline}\n.rel button:focus-visible{outline:2px solid var(--accent)}\n.bar{height:6px;background:var(--rule);border-radius:3px;overflow:hidden}\n.bar i{display:block;height:100%}\n.rel .num{font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}\n.mis{margin:2px 0;font-size:12px;font-variant-numeric:tabular-nums}.mis button{all:unset;cursor:pointer;font-weight:500}.mis button:hover{text-decoration:underline}.mis button:focus-visible{outline:2px solid var(--accent)}\n.gossip{font-size:12px;color:var(--muted);margin:8px 0 0}\n\n#filtc{display:block;width:100%;height:120px}\n#heat{display:block;width:100%;aspect-ratio:1;max-width:100%;image-rendering:pixelated;border:1px solid var(--rule)}\n.note{font-size:12px;color:var(--muted);margin:8px 0 0}\n.scale{display:flex;align-items:center;gap:8px;font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-top:6px}\n.scale i{flex:1;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--hostile),var(--panel),var(--ally));border:1px solid var(--rule)}\n\n.eq{font-family:var(--f-mono);font-size:12px;line-height:1.6;background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:10px;margin:0 0 12px;overflow-x:auto;white-space:pre}\n.sl{display:grid;gap:2px;margin-bottom:10px}\n.sl label{display:flex;justify-content:space-between;gap:8px;font-size:13px}\n.sym{font-family:var(--f-mono);color:var(--accent);display:inline-block;width:1.4em}\n.sl output{font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--muted)}\n.sl input{width:100%;accent-color:var(--accent)}\n.sl .hint{font-size:11.5px;color:var(--muted);margin:0;line-height:1.35}\n.worldrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--rule);padding-top:12px;margin-top:4px}\n.worldrow label{font-size:13px;display:inline-flex;gap:6px;align-items:center}\n.worldrow select{font:13px var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:6px}\n.recline{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;margin:0 0 10px}\n.recbtns{display:flex;flex-wrap:wrap;gap:8px}\n.recbtns label.btn{display:inline-flex;align-items:center}\n.recbtns label.btn:focus-within{outline:2px solid var(--accent);outline-offset:2px}\n.btn:disabled,.sl input:disabled{opacity:.5;cursor:not-allowed}\n.recstat{font-size:12px;margin:10px 0 0;color:var(--muted);min-height:1em}\n.recstat:empty{display:none}\n.recstat[data-kind=\"ok\"]{color:var(--ally)}.recstat[data-kind=\"warn\"]{color:var(--hostile)}\n.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}\n.seed{font-family:var(--f-mono);font-size:11px;color:var(--muted);width:100%}\n:host{\n  --bg:#111613; --panel:#181E1A; --ink:#E2E7DF; --muted:#909C93; --rule:#2A322D;\n  --landlo:#17201A; --landhi:#2C3829; --water:#10232A;\n  --ally:#4DBFA8; --hostile:#EE6B50; --food:#9CBD52; --accent:#E3AE4C; --neutral:#6E7771;\n  color-scheme:dark;\n}:host{background:transparent}.wrap{padding-inline:0;padding-block:8px 24px}.top>div:first-child{display:none}.top{grid-template-columns:1fr}.dek{justify-self:start}", html: "<div class=\"wrap\">\n  <header class=\"top\">\n    <div>\n      <p class=\"eyebrow\">Game Shelf \u00b7 Simulation \u00b7 v1.12</p>\n      <h1>Troop Politics</h1>\n    </div>\n    <p class=\"dek\">Bands forage a shared range. Every animal holds a feeling toward every other, from \u2212100 (attack on sight) to +100 (defend at any cost), and revises it by what its companions feel. When fruit runs short, those feelings decide who fights and who takes whose side.</p>\n  </header>\n\n  <div class=\"main\">\n    <section class=\"mapcol\">\n      <div class=\"mapcard\">\n        <canvas id=\"map\" aria-label=\"Map of the range showing animals, fruit trees and the ties between animals\"></canvas>\n        <div class=\"daytag\" id=\"day\">Day 0</div>\n        <div class=\"compass\">contour interval 8%</div>\n      </div>\n\n      <div class=\"toolbar\">\n        <button id=\"play\" class=\"btn primary\">Pause</button>\n        <button id=\"stepb\" class=\"btn\">Step a day</button>\n        <div class=\"seg\" role=\"group\" aria-label=\"Speed\">\n          <span class=\"seglabel\">Speed</span>\n          <button data-speed=\"1\">1\u00d7</button><button data-speed=\"2\">2\u00d7</button><button data-speed=\"4\">4\u00d7</button><button data-speed=\"10\">10\u00d7</button><button data-speed=\"50\">50\u00d7</button>\n        </div>\n        <div class=\"seg\" role=\"group\" aria-label=\"Color animals by\">\n          <span class=\"seglabel\">Color</span>\n          <button data-color=\"faction\">Faction</button><button data-color=\"lineage\">Lineage</button>\n        </div>\n        <label class=\"chk\"><input type=\"checkbox\" id=\"edges\" checked> Show ties</label>\n        <label class=\"chk\"><input type=\"checkbox\" id=\"terrchk\" checked> Show territory</label>\n      </div>\n\n      <div class=\"legend\">\n        <span><i class=\"lg-line lg-ally\"></i>Mutual affection</span>\n        <span><i class=\"lg-line lg-host\"></i>Mutual hostility</span>\n        <span><i class=\"lg-line lg-dash\"></i>Opinion held only through gossip (selected animal)</span>\n        <span><i class=\"lg-dep\"></i>Young dependent, drawn in its parent's faction color</span>\n        <span><i class=\"lg-dot\"></i>Fruit tree, sized by fruit left; ring shows the faction holding it</span>\n        <span><i class=\"lg-line lg-terr\"></i>Territory edge: a faction's members make up most of the use</span>\n        <span><i class=\"lg-sq\"></i>Food cache, sized by fruit stored</span>\n        <span><i class=\"lg-line lg-ally\" style=\"border-top-width:3px\"></i>Allied factions</span>\n        <span><i class=\"lg-line lg-host\" style=\"border-top:3px dashed var(--hostile)\"></i>Rival factions</span>\n      </div>\n\n      <div class=\"lower\">\n        <section class=\"panel\">\n          <h2>Factions <span id=\"unaff\"></span></h2>\n          <ul class=\"facs\" id=\"facs\"></ul>\n          <h2 class=\"sub\">Between factions</h2>\n          <ul class=\"relsl\" id=\"rels\"></ul>\n        </section>\n        <section class=\"panel\">\n          <h2>Field log</h2>\n          <ul class=\"log\" id=\"log\"></ul>\n        </section>\n      </div>\n    </section>\n\n    <aside class=\"side\">\n      <section class=\"panel stats\">\n        <div class=\"stat\"><div class=\"lab\">Population</div><div class=\"val\" id=\"v-pop\">0</div><canvas id=\"sp-pop\"></canvas></div>\n        <div class=\"stat\"><div class=\"lab\">Factions</div><div class=\"val\" id=\"v-fac\">0</div><canvas id=\"sp-fac\"></canvas></div>\n        <div class=\"stat\"><div class=\"lab\" id=\"l-bal\">Tense triads</div><div class=\"val\" id=\"v-bal\">\u2013</div><canvas id=\"sp-bal\"></canvas><div class=\"sub\" id=\"s-bal\"></div></div>\n      </section>\n\n      <section class=\"panel\">\n        <h2>Field record</h2>\n        <p class=\"recline\" id=\"recline\"></p>\n        <div class=\"recbtns\">\n          <button class=\"btn\" id=\"saverun\">Save run</button>\n          <button class=\"btn\" id=\"savecsv\">Events CSV</button>\n          <label class=\"btn\" for=\"loadf\">Load run<input type=\"file\" id=\"loadf\" class=\"vh\" accept=\".json,application/json\"></label>\n        </div>\n        <p class=\"note\">Every event and parameter change is recorded from day 0, with full affect and territory snapshots every 10 days. A saved run replays exactly from its seed.</p>\n        <p class=\"recstat\" id=\"recstat\" role=\"status\"></p>\n      </section>\n\n      <section class=\"panel\">\n        <h2>Selected animal</h2>\n        <div id=\"insp\"></div>\n      </section>\n\n      <section class=\"panel\">\n        <h2>Grouping levels <span id=\"filtn\"></span></h2>\n        <canvas id=\"filtc\"></canvas>\n        <p class=\"note\">Number of groups if animals are joined whenever both feel more than \u03b8 for each other, sweeping \u03b8 from +100 down to \u2212100. Flat stretches are natural levels of grouping. The dashed line is the faction threshold, +25.</p>\n      </section>\n\n      <section class=\"panel\">\n        <h2>Affect matrix X <span id=\"heatn\"></span></h2>\n        <canvas id=\"heat\"></canvas>\n        <div class=\"scale\"><span>\u2212100</span><i></i><span>+100</span></div>\n        <p class=\"note\">Row i, column j is how i feels about j. Animals are grouped by faction, so allies form warm blocks on the diagonal.</p>\n      </section>\n\n      <section class=\"panel\">\n        <h2>Rules</h2>\n<pre class=\"eq\">x<sub>ij</sub> \u2190 x<sub>ij</sub> \u2212 \u03bb\u00b7x<sub>ij</sub>\n     + \u03b2\u00b7( \u03a3<sub>k</sub> w<sub>ik</sub>\u00b7x<sub>kj</sub> / \u03a3<sub>k</sub> |w<sub>ik</sub>| \u2212 x<sub>ij</sub> )\n     + \u03c3\u00b7\u03be  + grooming \u2212 fights\nw<sub>ik</sub> = c<sub>ik</sub>\u00b7g(x<sub>ik</sub>),  g(x) = x if x &gt; 0, else \u03b3\u00b7x\nsums run over informants k with an opinion of j (ignorance is not neutrality)\nc<sub>ik</sub> = how much i and k see of each other\n\n\u03a9<sub>i</sub>(r) = (h<sub>i</sub> + \u03a3<sub>j</sub> x<sub>ij</sub><sup>+</sup>h<sub>j</sub>) / \u03a3<sub>j</sub> h<sub>j</sub>   belonging\n\u03a6<sub>i</sub>(r) = \u03a3<sub>j</sub> x<sub>ij</sub><sup>\u2212</sup>h<sub>j</sub> / \u03a3<sub>j</sub> h<sub>j</sub>         hostile use\nh<sub>j</sub>(r) = j's home range (27-day memory)\n\nforgetting pulls x<sub>ij</sub> toward \u03c8\u00b7b<sub>ij</sub> + \u03ba\u00b7r<sub>ij</sub>, not 0\nb<sub>ij</sub> \u2190 b<sub>ij</sub> + \u03b7\u00b7c<sub>ij</sub>\u00b7(x<sub>ij</sub> \u2212 b<sub>ij</sub>) \u2212 (\u03bb/10)\u00b7b<sub>ij</sub>   slow bond\nr<sub>ij</sub> = relatedness from the genealogy\n\nhungry: best net gain per distance; own ground \u00d71, unoccupied \u00d70.75,\n        foreign only when desperate; then wait, explore\nencounters: P(win) from both coalitions; attack if P \u2265 \u00bd+0.3q,\n        face off if near even, otherwise the weaker backs down\nbeliefs: P<sub>ik</sub> \u2190 P<sub>ik</sub> + 0.08\u03c9\u00b7c<sub>ik</sub>\u00b7(x<sub>ki</sub> + noise \u2212 P<sub>ik</sub>) \u2212 0.002\u00b7(P<sub>ik</sub> \u2212 x<sub>ik</sub>)\n        fights decided on believed support; recruitment reveals it\nbystander k joins if (|x<sub>ki</sub>\u2212x<sub>kj</sub>| + \u03ba\u00b7\u0394r)\u00b7\u0394p \u2265 \u03c7\u00b7(1\u2212p)\u00b70.12/e<sub>k</sub>\n        \u0394p: how much k's joining changes the odds; most committed decide first\nbetrayal leaves a grudge g (fades over ~100 days) that blocks grooming and gossip\n        and lowers the level affect returns to; onlookers who like the betrayed think less of the betrayer\nisolated i on ground used by others: x<sub>ij</sub> += 0.02\u03b1\u00b7(1 \u2212 cap<sub>i</sub>/1.5)\u00b7share<sub>j</sub>\u00b7(1 \u2212 x<sub>ij</sub>)\n        residents warm to it in turn once it likes them\ntree score \u00d7 (1 + 2c\u00b7votes/(1 + all votes)); votes = affect of hungry party members heading there\nyoung of liked parents: affect starts and is held at \u2265 0.7\u03b7\u00b7min(1, x<sub>parent</sub>/0.3); infants stay by their parent\ngift i\u2192j = 0.01\u03c1\u00b7min(1, 2(\u03bar<sub>ij</sub> + \u03c8b<sub>ij</sub> + \u00bdx<sub>ij</sub><sup>+</sup>)) per tick to hungry j\ntrees known only by sight (radius v), memory, and friends</pre>\n        <div id=\"sliders\"></div>\n        <div class=\"worldrow\">\n          <label for=\"bands\">Bands <select id=\"bands\"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select></label>\n          <button class=\"btn\" id=\"neww\">New world</button>\n          <button class=\"btn\" id=\"restart\">Restart</button>\n          <div class=\"seed\" id=\"seed\"></div>\n        </div>\n      </section>\n    </aside>\n  </div>\n</div>" };
+function troopRun(document, window, requestAnimationFrame) {
+
+(function(){
+"use strict";
+const VERSION="1.12";
+const NM=160, W=1000, H=700, GS=5, GW=W/GS, GH=H/GS, WATER=0.22, TPD=25, POPCAP=140, SNAP_EVERY=250;
+const HAS_DOM = typeof document!=="undefined";
+const params={lambda:0.002,beta:0.08,gamma:0.3,bias:0.5,scarcity:0.45,aggr:0.35,sigma:0.01,tau:0.5,bond:1,kin:0.5,rangeDays:150,vision:160,assess:0.6,expand:0.5,provision:0.5,visit:1,party:90,read:0.5,caution:1,assim:0,nurture:1,dispersal:0,consensus:1,rules:12,bands:4};
+
+let rng, seed, elev, pixE, terrainCanvas, patches, A, X, Xb, C, K, tick, facOf, facs, selected=-1,
+    flashes, hist, metBands, bandInfo, balance=null, running=true, uiDirty=true, speed=2, colorMode="faction", showEdges=true,
+    rec, nextUid=1, nextFid=1, popCount=0, replaying=false, ALIVE=[], extinct=false, recBytes=0;
+/* territory: home ranges on a coarse grid */
+const CELL=20, CW=W/CELL, CH=H/CELL, NC=CW*CH, H0=0.02;
+/* range memory: rangeDays>0 sets the decay; 0 is the legacy 27-day value */
+const rangeMu=()=>params.rangeDays>0?1-10/(params.rangeDays*TPD):0.985;
+const Hm=new Float32Array(NM*NC), U=new Float32Array(NC), Om=new Float32Array(NM), Ph=new Float32Array(NM);
+let terr={owner:new Int32Array(NC),share:new Float32Array(NC),byFid:new Map(),segs:new Map(),area:new Map()}, treeOwner=[], landCell=new Uint8Array(NC), landCells=1;
+let OMv=0, PHv=0, FRv=0, UCv=0;
+/* v1.4: what each animal knows about each tree */
+const TWc=new Float32Array(NC), ENC=[];let facRel=new Map();
+/* v1.6 provisioning: carried loads, gifts, caches */
+const LOADMAX=0.5, CACHE_R=20, CACHE_MERGE=40, CACHE_MAX=16;let CACHES=[], SHARED=0, CACHED=0, VISITS=0;
+/* v1.8 beliefs: Pm[i*NM+k] is what i believes k feels toward i */
+const Pm=new Float32Array(NM*NM),Gm=new Float32Array(NM*NM);const beliefsOn=()=>params.rules>=8&&params.read<1;
+const carrierP=uid=>((Math.imul(uid,2654435761)>>>0)/4294967296);
+const HD=new Float32Array(NM).fill(1),KF=new Float32Array(NM*13), KT=new Int32Array(NM*13).fill(-1), UFOR=0.08, NEED=0.3, DISPERSE_AGE=60*25, JUV_AGE=60*25, INFANT_AGE=30*25;
+/* v1.3: slow bonds B, genealogical relatedness Rk, grouping filtration */
+const Bm=new Float32Array(NM*NM), Rk=new Float32Array(NM*NM), ETA_B=0.01, FILT_N=41;
+let filt=new Int16Array(FILT_N);
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const gauss=()=>(rng()+rng()+rng()+rng()-2)*1.732;
+const clamp=v=>v>1?1:v<-1?-1:v;
+const r1=v=>Math.round(v*10)/10, r3=v=>Math.round(v*1000)/1000;
+const CON="bdgkhlmnprstvwz", VOW="aeiou";
+function makeName(){let s="";const n=2+(rng()<0.3?1:0);for(let i=0;i<n;i++)s+=CON[rng()*CON.length|0]+VOW[rng()*5|0];return s[0].toUpperCase()+s.slice(1)}
+function aliveList(){const al=[];for(let i=0;i<NM;i++)if(A[i])al.push(i);return al}
+
+/* ---------- terrain ---------- */
+function valueNoise(r){const P=new Float32Array(65536);for(let i=0;i<65536;i++)P[i]=r();
+  const g=(a,b)=>P[((b&255)<<8)|(a&255)];
+  return (x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+    const a=g(xi,yi),b=g(xi+1,yi),c=g(xi,yi+1),d=g(xi+1,yi+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v}}
+function buildTerrain(){const n=valueNoise(rng);elev=new Float32Array(GW*GH);let mn=1e9,mx=-1e9;
+  for(let gy=0;gy<GH;gy++)for(let gx=0;gx<GW;gx++){const x=gx*GS,y=gy*GS;let e=0,amp=1,fr=1/280,tot=0;
+    for(let o=0;o<4;o++){e+=amp*n(x*fr+o*17.3,y*fr+o*9.1);tot+=amp;amp*=0.5;fr*=2}
+    e/=tot;elev[gy*GW+gx]=e;if(e<mn)mn=e;if(e>mx)mx=e}
+  for(let i=0;i<elev.length;i++)elev[i]=(elev[i]-mn)/(mx-mn);}
+function Eb(x,y){const fx=Math.max(0,Math.min(GW-1.001,x/GS)),fy=Math.max(0,Math.min(GH-1.001,y/GS));
+  const x0=Math.floor(fx),y0=Math.floor(fy),tx=fx-x0,ty=fy-y0,x1=x0+1,y1=y0+1;
+  const a=elev[y0*GW+x0],b=elev[y0*GW+x1],c=elev[y1*GW+x0],d=elev[y1*GW+x1];
+  return (a*(1-tx)+b*tx)*(1-ty)+(c*(1-tx)+d*tx)*ty}
+const water=(x,y)=>x<6||y<6||x>W-6||y>H-6||Eb(x,y)<WATER;
+const TW=500, TH=350;
+function computePix(){pixE=new Float32Array(TW*TH);for(let py=0;py<TH;py++)for(let px=0;px<TW;px++)pixE[py*TW+px]=Eb(px*2+1,py*2+1)}
+
+/* ---------- theme ---------- */
+const T={rgb:{}};
+function hexRGB(h){h=h.replace("#","").trim();if(h.length===3)h=h.split("").map(c=>c+c).join("");const n=parseInt(h,16);return[n>>16&255,n>>8&255,n&255]}
+const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+const css=(c,al=1)=>`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${al})`;
+function readTokens(){
+  const names=["bg","panel","ink","muted","rule","landlo","landhi","water","ally","hostile","food","accent","neutral"];
+  if(!HAS_DOM){names.forEach(k=>T.rgb[k]=[128,128,128]);return}
+  const cs=getComputedStyle(document.documentElement);
+  names.forEach(k=>{const v=cs.getPropertyValue("--"+k).trim()||"#888888";T.rgb[k]=hexRGB(v)});
+  const b=T.rgb.bg;T.dark=(0.299*b[0]+0.587*b[1]+0.114*b[2])<128;
+}
+function renderTerrain(){if(!HAS_DOM)return;
+  terrainCanvas=terrainCanvas||document.createElement("canvas");terrainCanvas.width=TW;terrainCanvas.height=TH;
+  const ctx=terrainCanvas.getContext("2d"),img=ctx.createImageData(TW,TH),d=img.data;
+  const lo=T.rgb.landlo,hi=T.rgb.landhi,wa=T.rgb.water,ink=T.rgb.ink;const STEP=0.08;
+  for(let py=0;py<TH;py++)for(let px=0;px<TW;px++){const i=py*TW+px,e=pixE[i];let c;
+    if(e<WATER){c=mix(wa,mix(wa,ink,0.12),Math.min(1,(WATER-e)/WATER*1.5))}
+    else c=mix(lo,hi,Math.pow((e-WATER)/(1-WATER),0.9));
+    const b=Math.floor(e/STEP);
+    const er=px<TW-1?pixE[i+1]:e, ed=py<TH-1?pixE[i+TW]:e;
+    if((er<WATER)!==(e<WATER)||(ed<WATER)!==(e<WATER))c=mix(c,ink,0.38);
+    else if(e>=WATER&&(Math.floor(er/STEP)!==b||Math.floor(ed/STEP)!==b))c=mix(c,ink,0.13);
+    const o=i*4;d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255}
+  ctx.putImageData(img,0,0);
+}
+
+/* ---------- run record ---------- */
+function newRecord(){return{format:"troop-politics-run",version:VERSION,seed,params0:Object.assign({},params),
+  ticksPerDay:TPD,snapshotEvery:SNAP_EVERY,world:{width:W,height:H},territoryGrid:{cols:CW,rows:CH,cell:CELL},patches:[],bands:[],roster:{},events:[],paramChanges:[],series:[],snapshots:[]}}
+function ev(type,data){const e=Object.assign({t:tick,type},data);rec.events.push(e);recBytes+=40+JSON.stringify(data).length;uiDirty=true;return e}
+const nm=u=>(rec.roster[u]&&rec.roster[u].name)||"?";
+const tagN=arr=>arr.length>1?` and ${arr.length-1} ${arr.length===2?"ally":"allies"}`:"";
+function eventText(e){switch(e.type){
+  case "settle":return `${e.bands.length} bands settle the range: ${e.bands.join(", ")}`;
+  case "contact":return `First contact: ${e.bandA} band meets ${e.bandB} band (${nm(e.a)} and ${nm(e.b)})`;
+  case "fight":{const Wn=e.winner==="A"?e.A:e.B,Ls=e.winner==="A"?e.B:e.A;return `${nm(Wn[0])}${tagN(Wn)} drove off ${nm(Ls[0])}${tagN(Ls)}${e.where==="border"?" at a border":""}${e.upset?", an upset":""}`}
+  case "birth":return `${nm(e.uid)} born to ${nm(e.parent)}`;
+  case "death":return `${nm(e.uid)} ${e.cause==="starved"?"starved":"died of old age"} at ${e.age} days`;
+  case "faction_formed":return `F${e.fid} forms around ${nm(e.leader)} (${e.members.length})`;
+  case "faction_dissolved":return `F${e.fid} dissolves`;
+  case "split":return `F${e.fid} splits into ${e.parts.map(p=>`F${p.fid} under ${nm(p.leader)} (${p.size})`).join(" and ")}`;
+  case "merge":return `F${e.fid} absorbs ${e.absorbed.map(f=>"F"+f).join(", ")} under ${nm(e.leader)} (${e.size})`;
+  case "succession":return rec.roster[e.from]&&rec.roster[e.from].died!=null&&rec.roster[e.from].died<=e.t?`${nm(e.to)} succeeds the late ${nm(e.from)} as leader of F${e.fid}`:`${nm(e.to)} displaces ${nm(e.from)} as leader of F${e.fid}`;
+  case "tree_claimed":return `F${e.fid} claims tree ${e.patch+1}${e.from?` from F${e.from}`:""}`;
+  case "display":return `${nm(e.A[0])}${tagN(e.A)} and ${nm(e.B[0])}${tagN(e.B)} faced off ${e.where==="border"?"at a border":"at a tree"} and parted without fighting`;
+  case "yield":return `${nm(e.uid)} backed down before ${nm(e.to[0])}${e.to.length>1?` and ${e.to.length-1} ${e.to.length===2?"ally":"allies"}`:""}`;
+  case "alliance_formed":return `F${e.a} and F${e.b} become allies`;
+  case "alliance_ended":return `F${e.a} and F${e.b} drift apart`;
+  case "rivalry_formed":return `F${e.a} and F${e.b} become rivals`;
+  case "rivalry_ended":return `F${e.a} and F${e.b} end their rivalry`;
+  case "betrayal":{const parts=[];if(e.defected.length)parts.push(`${e.defected.map(nm).join(", ")} took the other side`);if(e.abstained.length)parts.push(`${e.abstained.map(nm).join(", ")} stayed out`);return `${nm(e.uid)} counted on allies who failed it: ${parts.join("; ")}`}
+  case "cache_founded":return `${nm(e.uid)} starts a food cache`;
+  case "extinction":return "The last animal has died";
+  case "tree_abandoned":return `F${e.fid} loses hold of tree ${e.patch+1}`;
+  default:return e.type}}
+const KIND={fight:"fight",birth:"birth",death:"death",contact:"contact",settle:"contact",faction_formed:"politics",faction_dissolved:"politics",split:"politics",merge:"politics",succession:"politics",tree_claimed:"territory",tree_abandoned:"territory",extinction:"death",display:"display",yield:"display",cache_founded:"territory",betrayal:"politics",alliance_formed:"politics",alliance_ended:"politics",rivalry_formed:"politics",rivalry_ended:"politics"};
+const TERR_TYPES=new Set(["tree_claimed","tree_abandoned"]);
+function fnv(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,0x01000193)}return(h>>>0).toString(16).padStart(8,"0")}
+function b64(bytes){let s="";for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));return btoa(s)}
+function snapBondBytes(){const al=aliveList(),n=al.length,q=new Int8Array(n*n);for(let r=0;r<n;r++)for(let c=0;c<n;c++)q[r*n+c]=Math.round(Bm[al[r]*NM+al[c]]*127);return new Uint8Array(q.buffer)}
+function snapshot(){const before=rec.snapshots.length;const al=aliveList(),n=al.length,q=new Int8Array(n*n),kb=new Uint8Array(Math.ceil(n*n/8));
+  for(let r=0;r<n;r++){const ro=al[r]*NM;for(let c=0;c<n;c++){const v=X[ro+al[c]];q[r*n+c]=Math.round(v*127);if(K[ro+al[c]]){const b=r*n+c;kb[b>>3]|=1<<(b&7)}}}
+  rec.snapshots.push({t:tick,uids:al.map(i=>A[i].uid),pos:al.map(i=>[r1(A[i].x),r1(A[i].y)]),energy:al.map(i=>r3(A[i].e)),
+    fid:al.map(i=>facOf[i]>=0?facs[facOf[i]].fid:null),food:patches.map(p=>r3(p.food)),
+    X:b64(new Uint8Array(q.buffer)),K:b64(kb),
+    terr:{owner:b64(new Uint8Array(Uint16Array.from(terr.owner).buffer)),share:b64(Uint8Array.from(terr.share,v=>Math.round(Math.min(1,v)*255)))},trees:treeOwner.slice(),
+    B:b64(Uint8Array.from(snapBondBytes())),filt:Array.from(filt),...(beliefsOn()?{P:b64(Uint8Array.from((()=>{const al=aliveList(),n=al.length,q=new Int8Array(n*n);for(let r=0;r<n;r++)for(let c=0;c<n;c++)q[r*n+c]=Math.round(Pm[al[r]*NM+al[c]]*127);return new Uint8Array(q.buffer)})()))}:{}),...(params.rules>=6?{caches:CACHES.map(c=>[r1(c.x),r1(c.y),r3(c.food)]),loads:aliveList().map(i=>r3(A[i].load||0))}:{})});
+  if(rec.snapshots.length>before){const sn=rec.snapshots[rec.snapshots.length-1];recBytes+=sn.X.length+sn.B.length+sn.K.length+sn.terr.owner.length+sn.terr.share.length+sn.uids.length*40}}
+function finalizeRecord(){return Object.assign({},rec,{endTick:tick,eventHash:fnv(JSON.stringify(rec.events)),savedAt:new Date().toISOString()})}
+
+/* ---------- territory ---------- */
+const cellOf=(x,y)=>Math.min(CH-1,Math.max(0,y/CELL|0))*CW+Math.min(CW-1,Math.max(0,x/CELL|0));
+function deposit(i,amt){const a=A[i],c=cellOf(a.x,a.y),cx=c%CW,cy=(c/CW)|0,ro=i*NC;let ctr=0.5*amt;
+  const add=(q,v)=>{Hm[ro+q]+=v;U[q]+=v};
+  if(cx>0)add(c-1,0.125*amt);else ctr+=0.125*amt;
+  if(cx<CW-1)add(c+1,0.125*amt);else ctr+=0.125*amt;
+  if(cy>0)add(c-CW,0.125*amt);else ctr+=0.125*amt;
+  if(cy<CH-1)add(c+CW,0.125*amt);else ctr+=0.125*amt;
+  add(c,ctr)}
+function clearRange(i){const ro=i*NC;for(let c=0;c<NC;c++){U[c]-=Hm[ro+c];Hm[ro+c]=0}}
+/* belonging (OMv) and hostile use (PHv) of cell c from animal i's point of view */
+function omegaAt(i,c){let pos=Hm[i*NC+c],neg=0,fr=Hm[i*NC+c];const ro=i*NM;
+  for(const j of ALIVE){if(j===i||!A[j])continue;const hj=Hm[j*NC+c];if(hj<1e-7)continue;const v=X[ro+j];if(v>0)pos+=v*hj;else neg-=v*hj;if(v>0.25)fr+=hj}
+  const den=Math.max(0,U[c])+H0;OMv=Math.min(1,pos/den);PHv=Math.min(1,neg/den);FRv=Math.min(1,fr/den);UCv=Math.max(0,U[c])}
+/* v1.4 foraging from memory: own ground, then unoccupied, then explore, then foreign ground */
+function estFood(i,p){const t=KT[i*13+p];if(t<0)return -1;const reg=0.012*(1-0.82*params.scarcity);return Math.min(patches[p].max,KF[i*13+p]+reg*(tick-t))}
+function chooseKnown5(i){const a=A[i];let best=-1,bs=-1e9,bcat=-1,wait=-1,ws=-1e9;const V2=params.vision*params.vision;
+  const cons=params.rules>=12?params.consensus:0,vote=cons>0?new Float32Array(patches.length):null;let vtot=0;
+  if(cons>0){const pr=params.party>0&&params.party<140?params.party:140,P2=pr*pr,ro=i*NM;for(const j of ALIVE){if(j===i||!A[j])continue;const b=A[j];if(b.target<0||b.e>=0.7)continue;const x=X[ro+j];if(x<=0.25)continue;
+      const dx=b.x-a.x,dy=b.y-a.y;if(dx*dx+dy*dy>P2)continue;vote[b.target]+=x;vtot+=x}}
+  for(let pi=0;pi<patches.length;pi++){const est=estFood(i,pi);if(est<0)continue;const p=patches[pi],d=Math.hypot(p.x-a.x,p.y-a.y);
+    let crowd=0,hostile=0;if(d*d<V2){for(const k of p.near)if(k!==i){crowd++;hostile+=Math.max(0,-X[i*NM+k])-0.3*Math.max(0,X[i*NM+k])}}
+    omegaAt(i,cellOf(p.x,p.y));const cat=FRv>=0.5?0:(UCv*(1-FRv)<UFOR&&PHv<0.2)?1:2;
+    const cost=d*0.0021,ea=a.e-cost;if(ea<0.03)continue;
+    const gain=Math.min(est/(1+crowd),0.97-ea),w=cat===0?1:cat===1?0.75:(a.e<0.35?0.3:0);
+    if(gain>=0.15&&w>0){let sc=w*gain/(d+80)-0.002*hostile;if(cons>0&&sc>0)sc*=1+2*cons*vote[pi]/(1+vtot);if(sc>bs){bs=sc;best=pi;bcat=cat}}
+    if(cat===0){const sw=(est+0.5)/(d+80);if(sw>ws){ws=sw;wait=pi}}}
+  a.forageCat=-1;let bestC=null;
+  if(params.rules>=6)for(const c of CACHES){if(c.food<0.1)continue;const d=Math.hypot(c.x-a.x,c.y-a.y);if(params.vision>0&&d>params.vision)continue;
+    const cost=d*0.0021,ea=a.e-cost;if(ea<0.03)continue;let crowd=0;for(const k of ALIVE)if(k!==i&&A[k]&&Math.hypot(A[k].x-c.x,A[k].y-c.y)<CACHE_R)crowd++;
+    omegaAt(i,cellOf(c.x,c.y));const cat=FRv>=0.5?0:(UCv*(1-FRv)<UFOR&&PHv<0.2)?1:2;const w=cat===0?1:cat===1?0.75:(a.e<0.35?0.3:0);
+    const gain=Math.min(c.food/(1+crowd),0.97-ea);if(gain>=0.15&&w>0){const sc=w*gain/(d+80);if(sc>bs){bs=sc;bestC=c;bcat=cat}}}
+  if(bestC&&bcat<2){a.forageCat=bcat;a.cacheRef=bestC;return -3}
+  if(bestC&&bcat===2&&best<0){a.forageCat=2;a.cacheRef=bestC;return -3}
+  if(best>=0&&bcat<2){a.forageCat=bcat;return best}
+  if(wait>=0&&a.e>0.45&&(a.age>DISPERSE_AGE||(params.rules>=11&&params.dispersal<0.5))){a.forageCat=0;return wait}
+  if(a.e>0.35||best<0){pickExplore(i);a.forageCat=3;return -2}
+  a.forageCat=2;return best}
+function expandTree(i){const a=A[i];let best=-1,bd=350;
+  for(let pi=0;pi<patches.length;pi++){if(params.vision>0&&KT[i*13+pi]<0)continue;const est=params.vision>0?estFood(i,pi):patches[pi].food;if(est<1)continue;
+    const p=patches[pi],d=Math.hypot(p.x-a.x,p.y-a.y);if(d>=bd)continue;omegaAt(i,cellOf(p.x,p.y));
+    if(FRv<0.5&&UCv*(1-FRv)<UFOR&&PHv<0.2){bd=d;best=pi}}
+  return best}
+function chooseKnown(i){if(params.rules>=5)return chooseKnown5(i);const a=A[i];const best=[[-1,-1e9],[-1,-1e9],[-1,-1e9]],wait=[-1,-1e9];const V2=params.vision*params.vision;
+  for(let pi=0;pi<patches.length;pi++){const est=estFood(i,pi);if(est<0)continue;const p=patches[pi],d=Math.hypot(p.x-a.x,p.y-a.y);
+    let crowd=0,hostile=0;if(d*d<V2){for(const k of p.near)if(k!==i){crowd++;hostile+=Math.max(0,-X[i*NM+k])-0.3*Math.max(0,X[i*NM+k])}}
+    omegaAt(i,cellOf(p.x,p.y));const cat=FRv>=0.5?0:(UCv*(1-FRv)<UFOR&&PHv<0.2)?1:2;
+    const s=est/(d+80)/(1+0.35*crowd)-0.003*hostile;const share=est/(1+crowd);if(share>=(cat===2?0.2:NEED)&&s>best[cat][1])best[cat]=[pi,s];
+    if(cat===0){const sw=(est+0.5)/(d+80);if(sw>wait[1])wait.splice(0,2,pi,sw)}}
+  a.forageCat=-1;
+  if(best[0][0]>=0){a.forageCat=0;return best[0][0]}
+  if(best[1][0]>=0){a.forageCat=1;return best[1][0]}
+  if(wait[0]>=0&&a.e>0.45&&a.age>DISPERSE_AGE){a.forageCat=0;return wait[0]}
+  if(a.e>0.35||best[2][0]<0){pickExplore(i);a.forageCat=3;return -2}
+  a.forageCat=2;return best[2][0]}
+function pickExplore(i){const a=A[i];let x=a.x,y=a.y;const young=a.age<=DISPERSE_AGE&&(params.rules<11||params.dispersal>0);const dsc=params.rules>=11?params.dispersal:1;
+  for(let k=0;k<6;k++){const ang=rng()*6.283,r=young?(120+80*dsc)+rng()*(220+80*dsc):120+rng()*220;const tx=Math.max(20,Math.min(W-20,a.x+Math.cos(ang)*r)),ty=Math.max(20,Math.min(H-20,a.y+Math.sin(ang)*r));
+    if(water(tx,ty))continue;x=tx;y=ty;omegaAt(i,cellOf(tx,ty));if(FRv>=0.5||(UCv*(1-FRv)<UFOR&&PHv<0.2))break}
+  a.ex=x;a.ey=y;a.exT=tick}
+function see(i){const a=A[i],V2=params.vision*params.vision,ro=i*13;
+  for(let pi=0;pi<patches.length;pi++){const p=patches[pi],dx=p.x-a.x,dy=p.y-a.y;if(dx*dx+dy*dy<V2){const fresh=KT[ro+pi]<0;KF[ro+pi]=p.food;KT[ro+pi]=tick;
+      if(fresh&&a.target===-2&&p.food>=NEED)a.target=-1}}}
+function frontierPatch(i){const sc=patches.map((p,pi)=>{if(params.vision>0&&KT[i*13+pi]<0)return[-1,pi];omegaAt(i,cellOf(p.x,p.y));return[params.rules>=5?0.5*OMv*(1-OMv)+1.5*OMv*PHv:OMv*(1-OMv)+0.5*OMv*PHv,pi]});
+  sc.sort((a,b)=>b[0]-a[0]||a[1]-b[1]);return sc[Math.min(sc.length-1,rng()*3|0)][1]}
+function computeTerritory(){
+  const own=terr.owner,sh=terr.share;own.fill(0);sh.fill(0);terr.byFid=new Map();terr.area=new Map();
+  for(const f of facs){const Rf=new Float32Array(NC);
+    for(const j of f.members){const ro=j*NC;for(let c=0;c<NC;c++)Rf[c]+=Hm[ro+c]}
+    let area=0;for(let c=0;c<NC;c++){const v=Rf[c]/(Math.max(0,U[c])+H0);Rf[c]=v;if(v>sh[c]){sh[c]=v;own[c]=f.fid}}
+    terr.byFid.set(f.fid,Rf)}
+  for(let c=0;c<NC;c++)if(sh[c]<0.5)own[c]=0;
+  for(let c=0;c<NC;c++)if(own[c]&&landCell[c])terr.area.set(own[c],(terr.area.get(own[c])||0)+1);
+  if(HAS_DOM){terr.segs=new Map();for(const f of facs)terr.segs.set(f.fid,contour(terr.byFid.get(f.fid),0.5))}}
+/* marching squares on cell-centred samples */
+function contour(F,lv){const segs=[];const P=(cx,cy)=>[cx*CELL+CELL/2,cy*CELL+CELL/2];
+  const lerp=(a,b,va,vb)=>{const t=(lv-va)/((vb-va)||1e-9);return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]};
+  for(let y=0;y<CH-1;y++)for(let x=0;x<CW-1;x++){const v0=F[y*CW+x],v1=F[y*CW+x+1],v2=F[(y+1)*CW+x+1],v3=F[(y+1)*CW+x];
+    const k=(v0>=lv?1:0)|(v1>=lv?2:0)|(v2>=lv?4:0)|(v3>=lv?8:0);if(k===0||k===15)continue;
+    const p0=P(x,y),p1=P(x+1,y),p2=P(x+1,y+1),p3=P(x,y+1);
+    const e=[lerp(p0,p1,v0,v1),lerp(p1,p2,v1,v2),lerp(p3,p2,v3,v2),lerp(p0,p3,v0,v3)];
+    const T={1:[[3,0]],2:[[0,1]],3:[[3,1]],4:[[1,2]],5:[[3,0],[1,2]],6:[[0,2]],7:[[3,2]],8:[[2,3]],9:[[0,2]],10:[[0,1],[2,3]],11:[[1,2]],12:[[1,3]],13:[[0,1]],14:[[0,3]]}[k];
+    for(const [a,b] of T)segs.push(e[a][0],e[a][1],e[b][0],e[b][1])}
+  return segs}
+function checkTrees(){patches.forEach((p,pi)=>{const c=cellOf(p.x,p.y);let best=0,bf=0;
+    for(const [fid,Rf] of terr.byFid)if(Rf[c]>best){best=Rf[c];bf=fid}
+    const cur=treeOwner[pi],curShare=cur&&terr.byFid.has(cur)?terr.byFid.get(cur)[c]:0;
+    if(cur&&curShare>=0.45)return;
+    if(best>=0.55&&bf!==cur){treeOwner[pi]=bf;ev("tree_claimed",{patch:pi,fid:bf,from:cur||null})}
+    else if(cur){treeOwner[pi]=0;ev("tree_abandoned",{patch:pi,fid:cur})}})}
+
+/* ---------- agents ---------- */
+function freeSlot(){for(let i=0;i<NM;i++)if(!A[i])return i;return -1}
+function newAgent(band,hue,x,y,e,parentUid){const a={uid:nextUid++,name:makeName(),band,hue,x,y,vx:0,vy:0,e,age:0,maxAge:(260+rng()*160)*TPD,parent:-1,parentName:null,cd:0,head:rng()*6.283,target:-1,roam:-1,load:0,harvest:-1,visitSlot:-1};
+  rec.roster[a.uid]={name:a.name,band,hue:Math.round(hue),born:tick,parent:parentUid==null?null:parentUid};return a}
+
+function reset(newSeed){
+  seed=newSeed!=null?newSeed:(Math.random()*1e9|0);rng=mulberry32(seed);
+  buildTerrain();computePix();renderTerrain();
+  X=new Float32Array(NM*NM);Xb=new Float32Array(NM*NM);C=new Float32Array(NM*NM);K=new Uint8Array(NM*NM);A=new Array(NM).fill(null);
+  tick=0;flashes=[];hist={pop:[],fac:[],bal:[]};tension=null;metBands=new Set();selected=-1;facOf=new Int16Array(NM).fill(-1);facs=[];balance=null;
+  nextUid=1;nextFid=1;rec=newRecord();extinct=false;recBytes=2000;Bm.fill(0);Rk.fill(0);filt=new Int16Array(FILT_N);KF.fill(0);KT.fill(-1);
+  Hm.fill(0);U.fill(0);Om.fill(0);Ph.fill(0);terr={owner:new Int32Array(NC),share:new Float32Array(NC),byFid:new Map(),segs:new Map(),area:new Map()};
+  landCells=0;for(let c=0;c<NC;c++){landCell[c]=water((c%CW)*CELL+CELL/2,((c/CW)|0)*CELL+CELL/2)?0:1;landCells+=landCell[c]}
+  patches=[];let tries=0;
+  while(patches.length<13&&tries<8000){tries++;const x=40+rng()*(W-80),y=40+rng()*(H-80);
+    if(Eb(x,y)<WATER+0.06)continue;if(patches.some(p=>Math.hypot(p.x-x,p.y-y)<95))continue;
+    patches.push({x,y,food:1.5+rng()*1.5,max:3,near:[]})}
+  rec.patches=patches.map(p=>[r1(p.x),r1(p.y)]);
+  const nb=params.bands,homes=[];tries=0;let minD=320;
+  while(homes.length<nb&&tries<30000){tries++;if(tries%2500===0)minD*=0.85;
+    const x=90+rng()*(W-180),y=90+rng()*(H-180);
+    if(Eb(x,y)<WATER+0.1)continue;if(homes.some(h=>Math.hypot(h.x-x,h.y-y)<minD))continue;homes.push({x,y})}
+  const hue0=rng()*360;bandInfo=[];
+  homes.forEach((h,b)=>{const hue=(hue0+b*360/nb)%360;bandInfo.push({name:makeName(),hue});
+    const n=10+(rng()*4|0),mem=[];
+    for(let m=0;m<n;m++){const s=freeSlot();if(s<0)break;let x,y,t=0;
+      do{x=h.x+(rng()-0.5)*120;y=h.y+(rng()-0.5)*120;t++}while(water(x,y)&&t<80);
+      if(water(x,y)){x=h.x;y=h.y}
+      A[s]=newAgent(b,(hue+(rng()-0.5)*24+360)%360,x,y,0.5+rng()*0.4,null);A[s].age=rng()*120*TPD|0;rec.roster[A[s].uid].born=-A[s].age;mem.push(s)}
+    for(const i of mem)for(const j of mem)if(i!==j){X[i*NM+j]=0.2+rng()*0.45;C[i*NM+j]=0.6;K[i*NM+j]=1;Bm[i*NM+j]=X[i*NM+j];Rk[i*NM+j]=0.125}
+  });
+  rec.bands=bandInfo.map(b=>({name:b.name,hue:Math.round(b.hue)}));
+  treeOwner=patches.map(()=>0);facRel=new Map();ENC.length=0;CACHES=[];SHARED=0;CACHED=0;
+  for(let i=0;i<NM;i++)for(let k=0;k<NM;k++)Pm[i*NM+k]=K[i*NM+k]?X[k*NM+i]:0;Gm.fill(0);
+  for(let c=0;c<NC;c++){const cx=(c%CW)*CELL+CELL/2,cy=((c/CW)|0)*CELL+CELL/2;let w=0;for(const p of patches){const d2=(p.x-cx)**2+(p.y-cy)**2;w=Math.max(w,Math.exp(-d2/(2*70*70)))}TWc[c]=w}
+  for(let i=0;i<NM;i++)if(A[i])deposit(i,1);
+  ALIVE=aliveList();
+  if(params.vision>0)for(const i of ALIVE){const h=homes[A[i].band];patches.forEach((p,pi)=>{if(Math.hypot(p.x-h.x,p.y-h.y)<220){KF[i*13+pi]=p.food;KT[i*13+pi]=0}});see(i)}
+  countPop();
+  ev("settle",{bands:bandInfo.map(b=>b.name)});
+  computeFactions();computeTerritory();computeFiltration();snapshot();
+}
+function countPop(){popCount=0;for(let i=0;i<NM;i++)if(A[i])popCount++}
+
+function force(x,d){
+  let f=0;
+  if(x>=0){f=x*0.016*(d<26?-1.4:1);const pr=params.party;if(pr>0&&pr<140&&d>=26)f*=d<pr-30?1:Math.max(0,(pr-d)/30)}
+  else f=x*0.05*(1-d/140);
+  if(d<12)f-=0.05;
+  return f;
+}
+function choosePatch(i){if(params.vision>0)return chooseKnown(i);const a=A[i];let best=-1,bs=-1e9;
+  for(let pi=0;pi<patches.length;pi++){const p=patches[pi];const d=Math.hypot(p.x-a.x,p.y-a.y);
+    let hostile=0;for(const k of p.near)if(k!==i)hostile+=Math.max(0,-X[i*NM+k])-0.3*Math.max(0,X[i*NM+k]);
+    const crowd=p.near.length-(p.near.includes(i)?1:0);let s=p.food/(d+80)/(1+0.35*crowd);
+    if(params.tau>0){omegaAt(i,cellOf(p.x,p.y));s*=Math.max(0.2,Math.min(1.6,1+0.6*params.tau*(OMv-2*PHv)))}
+    s-=0.003*hostile;if(s>bs){bs=s;best=pi}}
+  return best}
+
+function firstContact(i,j){const a=A[i],b=A[j];const sim=Math.cos((a.hue-b.hue)*Math.PI/180);const pr=params.bias*0.8*sim;
+  X[i*NM+j]=clamp(X[i*NM+j]+pr+gauss()*0.06);X[j*NM+i]=clamp(X[j*NM+i]+pr+gauss()*0.06);noteBands(a,b)}
+function noteBands(a,b){if(a.band===b.band)return;const key=Math.min(a.band,b.band)+"-"+Math.max(a.band,b.band);if(metBands.has(key))return;
+  metBands.add(key);ev("contact",{bandA:bandInfo[a.band].name,bandB:bandInfo[b.band].name,a:a.uid,b:b.uid})}
+function touch(a,b){const ab=a*NM+b,ba=b*NM+a;C[ab]=Math.max(C[ab],0.5);C[ba]=C[ab];if(!K[ab]){K[ab]=K[ba]=1;noteBands(A[a],A[b])}}
+
+function tryFight(p,pidx){const nr=p.near.filter(i=>A[i]&&A[i].cd===0);if(nr.length<2)return;let best=1e9,bi=-1,bj=-1;
+  const tau=params.tau,pc=cellOf(p.x,p.y),hm=tau>0?nr.map(i=>{omegaAt(i,pc);return OMv}):null;
+  for(let u=0;u<nr.length;u++)for(let v=u+1;v<nr.length;v++){const i=nr[u],j=nr[v];
+    let m=(X[i*NM+j]+X[j*NM+i])/2-params.aggr*(1-Math.min(A[i].e,A[j].e))*0.8;
+    if(tau>0)m-=0.3*tau*Math.abs(hm[u]-hm[v]);
+    if(m<best){best=m;bi=i;bj=j}}
+  if(best>-0.05)return;fight(bi,bj,p.x,p.y,pidx,"tree")}
+function fight(i,j,fx,fy,pidx,where){const si=[i],sj=[j];let stayed=0;
+  if(params.rules>=9&&params.caution>0){const cand=[];
+    for(let k=0;k<NM;k++){const c=A[k];if(!c||k===i||k===j||c.cd>0)continue;const dx=c.x-fx,dy=c.y-fy;if(dx*dx+dy*dy>95*95)continue;
+      const a=X[k*NM+i],b=X[k*NM+j],d=a-b+params.kin*(Rk[k*NM+i]-Rk[k*NM+j]);if(Math.abs(d)>0.2&&Math.max(a,b)>0.1)cand.push([k,d])}
+    cand.sort((u,v)=>Math.abs(v[1])-Math.abs(u[1])||u[0]-v[0]);let SA=0.4+A[i].e,SB=0.4+A[j].e;
+    for(const [k,d] of cand){const sk=0.4+A[k].e,toA=d>0,S1=toA?SA:SB,S2=toA?SB:SA,p0=S1*S1/(S1*S1+S2*S2),p1=(S1+sk)*(S1+sk)/((S1+sk)*(S1+sk)+S2*S2);
+      if(Math.abs(d)*(p1-p0)>=params.caution*(1-p1)*0.12/Math.max(0.2,A[k].e)){if(p0>=0.5)BYST.fav++;else BYST.dog++;if(toA){si.push(k);SA+=sk}else{sj.push(k);SB+=sk}}else{stayed++;BYST.out++}}}
+  else for(let k=0;k<NM;k++){const c=A[k];if(!c||k===i||k===j||c.cd>0)continue;const dx=c.x-fx,dy=c.y-fy;if(dx*dx+dy*dy>95*95)continue;
+    const a=X[k*NM+i],b=X[k*NM+j],d=a-b;if(Math.abs(d)>0.2&&Math.max(a,b)>0.1)(d>0?si:sj).push(k)}
+  const S=s=>s.reduce((t,k)=>t+0.4+A[k].e,0);let Si=S(si),Sj=S(sj),hA=0,hB=0;
+  if(params.tau>0){const c=cellOf(fx,fy);omegaAt(i,c);hA=OMv;omegaAt(j,c);hB=OMv;Si*=1+0.6*params.tau*hA;Sj*=1+0.6*params.tau*hB}
+  const pi=Si*Si/(Si*Si+Sj*Sj);
+  if(beliefsOn()&&params.assess>0){const th=0.5+0.3*params.assess,di=Math.max(0,(0.35-A[i].e)/0.35),dj=Math.max(0,(0.35-A[j].e)/0.35);
+    const ei=perceive(i,j,fx,fy,1+0.6*params.tau*hA,1+0.6*params.tau*hB),ej=perceive(j,i,fx,fy,1+0.6*params.tau*hB,1+0.6*params.tau*hA);
+    const bi=ei.p<1-th&&di<0.5,bj=ej.p<1-th&&dj<0.5;
+    if(bi&&bj){reveal(i,ei.allies,si,sj);reveal(j,ej.allies,sj,si);display(si,sj,fx,fy,pi,where);return}
+    if(bi){backDown(i,sj,fx,fy,ei.p,where);return}
+    if(bj){backDown(j,si,fx,fy,ej.p,where);return}
+    if(ei.p<th-0.3*di&&ej.p<th-0.3*dj){reveal(i,ei.allies,si,sj);reveal(j,ej.allies,sj,si);display(si,sj,fx,fy,pi,where);return}
+    const bt=[reveal(i,ei.allies,si,sj),reveal(j,ej.allies,sj,si)];FIGHT_EST=[ei.p,1-ej.p];
+    for(const r of bt)if(r)ev("betrayal",r)}
+  else if(params.rules>=5&&params.assess>0){const th=0.5+0.3*params.assess,di=Math.max(0,(0.35-A[i].e)/0.35),dj=Math.max(0,(0.35-A[j].e)/0.35);
+    const weakI=pi<0.5,pw=weakI?pi:1-pi,dw=weakI?di:dj,ds=weakI?dj:di;
+    if(pw<1-th&&dw<0.5){backDown(weakI?i:j,weakI?sj:si,fx,fy,pw,where);return}
+    if(1-pw<th-0.3*ds){display(si,sj,fx,fy,pi,where);return}}
+  if(!beliefsOn())FIGHT_EST=null;
+  const iWins=rng()<pi;
+  const win=iWins?si:sj,lose=iWins?sj:si;
+  const fe=ev("fight",{...(params.rules>=5?{where:where||"tree"}:{}),...(beliefsOn()&&FIGHT_EST?{estA:r3(FIGHT_EST[0]),estB:r3(FIGHT_EST[1])}:{}),...(params.rules>=9&&params.caution>0?{stayedOut:stayed}:{}),patch:pidx,A:si.map(k=>A[k].uid),B:sj.map(k=>A[k].uid),SA:r3(Si),SB:r3(Sj),pA:r3(pi),winner:iWins?"A":"B",upset:iWins?pi<0.5:pi>0.5});
+  if(params.tau>0){fe.homeA=r3(hA);fe.homeB=r3(hB)}
+  for(const a of win)for(const b of lose){X[a*NM+b]=clamp(X[a*NM+b]-0.15);X[b*NM+a]=clamp(X[b*NM+a]-0.25);touch(a,b)}
+  for(const side of [win,lose])for(const a of side)for(const b of side)if(a!==b){X[a*NM+b]=clamp(X[a*NM+b]+0.08);touch(a,b)}
+  const pw=win[0],pl=lose[0];X[pl*NM+pw]=clamp(X[pl*NM+pw]-0.15);X[pw*NM+pl]=clamp(X[pw*NM+pl]-0.08);
+  for(const b of lose){const c=A[b];c.e=Math.max(0,c.e-0.12);const dx=c.x-fx,dy=c.y-fy,d=Math.hypot(dx,dy)+0.1;c.vx+=dx/d*2.5;c.vy+=dy/d*2.5;c.target=-1;c.cd=200}
+  for(const a of win){A[a].cd=120;A[a].e=Math.max(0,A[a].e-0.03)}
+  if(!replaying)flashes.push({x:fx,y:fy,t:0,n:si.length+sj.length});
+}
+let FIGHT_EST=null;const BYST={fav:0,dog:0,out:0};
+/* what principal `me` expects: bystanders it believes would side with it, using its belief about how they feel toward it and what it can see of their ties to the opponent */
+function perceive(me,opp,fx,fy,hm,ho){const mine=[me],theirs=[opp],allies=[];
+  for(let k=0;k<NM;k++){const c=A[k];if(!c||k===me||k===opp||c.cd>0)continue;const dx=c.x-fx,dy=c.y-fy;if(dx*dx+dy*dy>95*95)continue;
+    const a=Pm[me*NM+k],b=X[k*NM+opp],d=a-b;if(Math.abs(d)>0.2&&Math.max(a,b)>0.1){if(d>0){mine.push(k);allies.push(k)}else theirs.push(k)}}
+  const S=s=>s.reduce((t,k)=>t+0.4+A[k].e,0);const Sm=S(mine)*hm,So=S(theirs)*ho;return{p:Sm*Sm/(Sm*Sm+So*So),allies}}
+/* recruitment is public: update beliefs from who actually joined whom; expected allies who stayed out or switched sides are a betrayal */
+function reveal(me,expected,mySide,otherSide){const ab=[],df=[];const inMine=new Set(mySide),inOther=new Set(otherSide);
+  for(const k of mySide)if(k!==me){const q=me*NM+k;Pm[q]+=0.5*(X[k*NM+me]-Pm[q]);if(!expected.includes(k))X[q]=clamp(X[q]+0.05)}
+  for(const k of otherSide){const q=me*NM+k;Pm[q]+=0.5*(X[k*NM+me]-Pm[q])}
+  for(const k of expected){if(inMine.has(k))continue;const q=me*NM+k,def=inOther.has(k);if(def){df.push(A[k].uid);X[q]=clamp(X[q]-0.2)}else{ab.push(A[k].uid);X[q]=clamp(X[q]-0.1);Pm[q]=Math.min(Pm[q],X[k*NM+me]+0.1)}
+    if(params.rules>=10){Gm[q]=Math.min(1,Gm[q]+(def?1:0.6));
+      const m=A[me];for(const o of ALIVE){if(o===me||o===k||!A[o]||!K[o*NM+k])continue;const xo=X[o*NM+me];if(xo<=0.25)continue;const dx=A[o].x-m.x,dy=A[o].y-m.y;if(dx*dx+dy*dy>120*120)continue;
+        X[o*NM+k]=clamp(X[o*NM+k]-(def?0.1:0.05)*xo)}}}
+  return ab.length||df.length?{uid:A[me].uid,abstained:ab,defected:df}:null}
+/* an isolated animal on ground it does not hold gains affinity for the animals that use that ground */
+function assimilate(){const al=ALIVE,a0=params.assim;
+  for(const i of al){const a=A[i];if(!a)continue;let cap=0;const ro=i*NM;for(const j of al)if(j!==i&&A[j]){const m=Math.min(X[ro+j],X[j*NM+i]);if(m>0)cap+=m}
+    const iso=1-cap/1.5;if(iso<=0)continue;const c=cellOf(a.x,a.y),den=Math.max(0,U[c])+H0;
+    for(const j of al){if(j===i||!A[j]||!K[ro+j])continue;const w=Hm[j*NC+c]/den;if(w<0.02)continue;const q=ro+j;if(X[q]<-0.3)continue;if(X[q]<0.8)X[q]+=0.02*a0*iso*w*(1-X[q]);
+      const qb=j*NM+i;if(X[q]>0.2&&X[qb]>-0.3&&X[qb]<0.8&&Hm[j*NC+c]/den>=0.1)X[qb]+=0.01*a0*iso*X[q]*(1-X[qb])}}}
+function setHome(i){const ro=i*NC;let sx=0,sy=0,sw=0;for(let c=0;c<NC;c++){const w=Hm[ro+c];if(w>0){sx+=w*((c%CW)*CELL+CELL/2);sy+=w*(((c/CW)|0)*CELL+CELL/2);sw+=w}}
+  const a=A[i];if(sw>0&&!water(sx/sw,sy/sw)){a.homeX=sx/sw;a.homeY=sy/sw}else{a.homeX=a.x;a.homeY=a.y}}
+function give(i,j){const q=i*NM+j,g=params.kin*Rk[q]+params.bond*Bm[q]+0.5*Math.max(0,X[q]);if(g<0.12)return;
+  const amt=Math.min(A[i].load,0.01*params.provision*Math.min(1,2*g),0.97-A[j].e);if(amt<=0)return;
+  A[i].load-=amt;A[j].e+=amt;X[j*NM+i]=clamp(X[j*NM+i]+0.3*amt);SHARED+=amt}
+function visitTarget(i){const a=A[i],ro=i*NM;let best=-1,bs=0;
+  for(const j of ALIVE){if(j===i||!A[j]||!K[ro+j])continue;const x=X[ro+j];if(x<0.3)continue;const c=C[ro+j];if(c>0.2)continue;
+    const d=Math.hypot(A[j].x-a.x,A[j].y-a.y);if(d>500||d<60)continue;const sc=x*(1-c);if(sc>bs){bs=sc;best=j}}
+  return best}
+function harvestTree(i){const a=A[i];let best=-1,bd=300;
+  for(let pi=0;pi<patches.length;pi++){const est=params.vision>0?estFood(i,pi):patches[pi].food;if(est<2)continue;const p=patches[pi],d=Math.hypot(p.x-a.x,p.y-a.y);if(d>=bd)continue;
+    omegaAt(i,cellOf(p.x,p.y));if(FRv>=0.5&&PHv<0.2){bd=d;best=pi}}
+  return best}
+function dropCache(i){const a=A[i];let c=null;for(const k of CACHES)if(Math.hypot(k.x-a.x,k.y-a.y)<CACHE_MERGE){c=k;break}
+  if(!c){if(CACHES.length>=CACHE_MAX){let m=CACHES[0];for(const k of CACHES)if(k.food<m.food)m=k;c=m;}
+    else{c={x:a.x,y:a.y,food:0,born:tick};CACHES.push(c);ev("cache_founded",{uid:a.uid,x:r1(a.x),y:r1(a.y)})}}
+  c.food+=a.load;CACHED+=a.load;a.load=0}
+function display(si,sj,fx,fy,pi,where){
+  for(const a of si)for(const b of sj){X[a*NM+b]=clamp(X[a*NM+b]-0.03);X[b*NM+a]=clamp(X[b*NM+a]-0.03);touch(a,b)}
+  for(const side of [si,sj])for(const a of side)for(const b of side)if(a!==b)X[a*NM+b]=clamp(X[a*NM+b]+0.02);
+  const push=(side,ox,oy)=>{for(const k of side){const c=A[k],dx=c.x-ox,dy=c.y-oy,d=Math.hypot(dx,dy)+0.1;c.vx+=dx/d*1.2;c.vy+=dy/d*1.2;c.cd=Math.max(c.cd,70);c.target=-1}};
+  const ci=A[si[0]],cj=A[sj[0]];push(si,cj.x,cj.y);push(sj,ci.x,ci.y);
+  ev("display",{where:where||"tree",A:si.map(k=>A[k].uid),B:sj.map(k=>A[k].uid),pA:r3(pi)});
+  if(!replaying)flashes.push({x:fx,y:fy,t:0,n:si.length+sj.length,kind:"display"})}
+function backDown(k,strong,fx,fy,p,where){const c=A[k];const o=A[strong[0]];const dx=c.x-o.x,dy=c.y-o.y,d=Math.hypot(dx,dy)+0.1;
+  c.vx+=dx/d*1.5;c.vy+=dy/d*1.5;c.cd=Math.max(c.cd,100);c.target=-1;
+  for(const s2 of strong){X[k*NM+s2]=clamp(X[k*NM+s2]-0.03);touch(k,s2)}
+  ev("yield",{where:where||"tree",uid:c.uid,to:strong.map(q=>A[q].uid),p:r3(p)})}
+function birth(p){const s=freeSlot();if(s<0)return;const P=A[p];let x=P.x+(rng()-0.5)*16,y=P.y+(rng()-0.5)*16;if(water(x,y)){x=P.x;y=P.y}
+  const c=newAgent(P.band,(P.hue+gauss()*6+360)%360,x,y,0.4,P.uid);c.parent=p;c.parentName=P.name;P.e-=0.4;P.cd=300;A[s]=c;
+  const nur=params.rules>=11?params.nurture:0;
+  for(let j=0;j<NM;j++){if(j===s)continue;X[s*NM+j]=0.7*X[p*NM+j];const xp=X[j*NM+p];X[j*NM+s]=nur>0&&xp>0.1?Math.max(0.5*xp,0.7*nur*Math.min(1,xp/0.3)):0.5*xp;C[s*NM+j]=C[j*NM+s]=0.5*C[p*NM+j];K[s*NM+j]=K[j*NM+s]=K[p*NM+j]}
+  for(let j=0;j<NM;j++){if(j===s)continue;Bm[s*NM+j]=0.7*Bm[p*NM+j];Bm[j*NM+s]=0.5*Bm[j*NM+p];Rk[s*NM+j]=Rk[j*NM+s]=0.5*Rk[p*NM+j]}
+  X[s*NM+p]=X[p*NM+s]=0.85;C[s*NM+p]=C[p*NM+s]=1;K[s*NM+p]=K[p*NM+s]=1;X[s*NM+s]=0;C[s*NM+s]=0;K[s*NM+s]=0;
+  Bm[s*NM+p]=Bm[p*NM+s]=0.85;Rk[s*NM+p]=Rk[p*NM+s]=0.5;Bm[s*NM+s]=0;Rk[s*NM+s]=0;
+  for(let j=0;j<NM;j++){if(j===s)continue;Pm[s*NM+j]=0.7*Pm[p*NM+j];Pm[j*NM+s]=0.5*Pm[j*NM+p]}Pm[s*NM+p]=Pm[p*NM+s]=0.85;Pm[s*NM+s]=0;for(let j=0;j<NM;j++){Gm[s*NM+j]=0.5*Gm[p*NM+j];Gm[j*NM+s]=0}Gm[s*NM+p]=Gm[p*NM+s]=0;
+  {const rp=p*NC,rs=s*NC;for(let q=0;q<NC;q++){const v=Hm[rp+q];Hm[rs+q]=v;U[q]+=v}}
+  for(let q=0;q<13;q++){KF[s*13+q]=KF[p*13+q];KT[s*13+q]=KT[p*13+q]}
+  popCount++;ev("birth",{uid:c.uid,parent:P.uid})}
+function kill(i,cause){const a=A[i];clearRange(i);for(let q=0;q<13;q++){KT[i*13+q]=-1;KF[i*13+q]=0}
+  for(const f of facs){const q=f.members.indexOf(i);if(q>=0)f.members.splice(q,1);if(f.alpha===i)f.alpha=-1}facOf[i]=-1;ev("death",{uid:a.uid,cause,age:Math.floor(a.age/TPD)});rec.roster[a.uid].died=tick;A[i]=null;
+  for(let j=0;j<NM;j++){X[i*NM+j]=X[j*NM+i]=0;C[i*NM+j]=C[j*NM+i]=0;K[i*NM+j]=K[j*NM+i]=0;Bm[i*NM+j]=Bm[j*NM+i]=0;Rk[i*NM+j]=Rk[j*NM+i]=0;Pm[i*NM+j]=Pm[j*NM+i]=0;Gm[i*NM+j]=Gm[j*NM+i]=0}
+  for(const b of A)if(b&&b.parent===i)b.parent=-1;
+  if(selected===i)selected=-1;popCount--}
+
+function updateAffect(){const al=aliveList();
+  const acc=new Float32Array(NM),{lambda,beta,gamma,sigma,bond,kin}=params;
+  const wab=new Float32Array(NM),accD=new Float32Array(NM),r7=params.rules>=7,g10=params.rules>=10,n11=params.rules>=11&&params.nurture>0;
+  const juvP=new Int16Array(NM).fill(-1);if(n11)for(const j of al){const b=A[j];if(b&&b.age<JUV_AGE&&b.parent>=0&&A[b.parent])juvP[j]=b.parent}if(g10)for(let q=0;q<NM*NM;q++)if(Gm[q]>0)Gm[q]*=0.998;
+  if(r7)for(const i of al){acc.fill(0);accD.fill(0);const ro=i*NM;
+    for(const k of al){const c=C[ro+k];if(c<0.05)continue;const x=X[ro+k];const g=x>0?x:gamma*x;const w=c*g;if(w===0)continue;const aw=Math.abs(w),rk=k*NM;
+      for(const j of al){const xk=X[rk+j];const q=K[rk+j]?1:(xk>0.05||xk<-0.05)?0.5:0;if(q){acc[j]+=w*q*xk;accD[j]+=aw*q}}}
+    for(const j of al){if(j===i){Xb[ro+j]=0;continue}let v=X[ro+j];const den=accD[j];
+      if(den>1e-4)v+=beta*(den/(den+0.3))*(acc[j]/den-v)*(g10?1-Gm[ro+j]:1);
+      let anc=bond*Bm[ro+j]+kin*Rk[ro+j]-(g10?0.5*Gm[ro+j]:0);if(n11&&juvP[j]>=0&&juvP[j]!==i){const xp=X[ro+juvP[j]];if(xp>0.1)anc=Math.max(anc,0.7*params.nurture*Math.min(1,xp/0.3))}
+      v-=lambda*(v-anc);if(K[ro+j]&&sigma>0)v+=sigma*gauss();Xb[ro+j]=v>1?1:v<-1?-1:v}}
+  else for(const i of al){acc.fill(0);wab.fill(0);let D=0;const ro=i*NM;
+    for(const k of al){const c=C[ro+k];if(c<0.05)continue;const x=X[ro+k];const g=x>0?x:gamma*x;const w=c*g;if(w===0)continue;
+      wab[k]=Math.abs(w);D+=wab[k];const rk=k*NM;for(const j of al)acc[j]+=w*X[rk+j]}
+    for(const j of al){if(j===i){Xb[ro+j]=0;continue}let v=X[ro+j];const den=D-wab[j];
+      if(den>1e-4)v+=beta*(den/(den+0.3))*(acc[j]/den-v);
+      v-=lambda*(v-(bond*Bm[ro+j]+kin*Rk[ro+j]));if(K[ro+j]&&sigma>0)v+=sigma*gauss();Xb[ro+j]=v>1?1:v<-1?-1:v}}
+  for(const i of al){const ro=i*NM;for(const j of al)X[ro+j]=Xb[ro+j]}
+  if(beliefsOn()){const rd=params.read,so=0.05+0.4*(1-rd);
+    for(const i of al){const ro=i*NM;for(const k of al){if(k===i)continue;const q=ro+k,c=C[q];let v=Pm[q];
+      if(K[q]&&c>=0.05)v+=0.08*rd*c*(X[k*NM+i]+so*gauss()-v);
+      v-=0.002*(v-X[q]);Pm[q]=v>1?1:v<-1?-1:v}}}
+  const lb=0.1*lambda;
+  for(const i of al){const ro=i*NM;for(const j of al){if(j===i)continue;const q=ro+j;Bm[q]+=ETA_B*C[q]*(X[q]-Bm[q])-lb*Bm[q]}}
+  for(let q=0;q<NM*NM;q++)C[q]*=0.996;
+}
+/* number of connected components of {min(x_ij,x_ji) > θ} for θ = 1, 0.95, ..., -1 */
+function computeRelations(){const next=new Map(),cen=new Map();
+  for(const f of facs){let x=0,y=0,n=0;for(const i of f.members)if(A[i]){x+=A[i].x;y+=A[i].y;n++}if(n)cen.set(f.fid,[x/n,y/n])}
+  for(let u=0;u<facs.length;u++)for(let v=u+1;v<facs.length;v++){const F=facs[u],G=facs[v];let fg=0,gf=0,nf=0,ng=0;
+    for(const i of F.members)for(const j of G.members){if(!A[i]||!A[j])continue;fg+=X[i*NM+j];gf+=X[j*NM+i];nf++}
+    if(!nf)continue;fg/=nf;gf/=nf;const lo=Math.min(fg,gf),hi=Math.max(fg,gf);
+    const a=Math.min(F.fid,G.fid),b=Math.max(F.fid,G.fid),key=a+"-"+b,prev=facRel.get(key)||{state:0};
+    let st=prev.state;if(st===1&&lo<0.06){ev("alliance_ended",{a,b});st=0}if(st===-1&&hi>-0.06){ev("rivalry_ended",{a,b});st=0}
+    if(st===0&&lo>0.12){ev("alliance_formed",{a,b,strength:r3(lo)});st=1}else if(st===0&&hi<-0.12){ev("rivalry_formed",{a,b,strength:r3(hi)});st=-1}
+    next.set(key,{a,b,state:st,lo,hi,ca:cen.get(F.fid),cb:cen.get(G.fid)})}
+  facRel=next}
+function computeFiltration(){const al=ALIVE.length?ALIVE.filter(i=>A[i]):aliveList(),edges=[];
+  for(let u=0;u<al.length;u++)for(let v=u+1;v<al.length;v++){const i=al[u],j=al[v];if(!K[i*NM+j])continue;edges.push([Math.min(X[i*NM+j],X[j*NM+i]),i,j])}
+  edges.sort((a,b)=>b[0]-a[0]);const par=new Int16Array(NM);for(let i=0;i<NM;i++)par[i]=i;
+  const f=x=>{while(par[x]!==x){par[x]=par[par[x]];x=par[x]}return x};let comps=al.length,e=0;
+  for(let q=0;q<FILT_N;q++){const th=1-q*0.05;while(e<edges.length&&edges[e][0]>th){const a=f(edges[e][1]),b=f(edges[e][2]);if(a!==b){par[a]=b;comps--}e++}filt[q]=comps}}
+
+/* ---------- factions with persistent identity ---------- */
+const MIN_FAC=3, JOIN=0.25, STAY=0.15, MATCH_J=0.25, LEAD_MARGIN=0.15;
+function circHue(members){let sx=0,sy=0;for(const i of members){const h=A[i].hue*Math.PI/180;sx+=Math.cos(h);sy+=Math.sin(h)}return(Math.atan2(sy,sx)*180/Math.PI+360)%360}
+function computeFactions(){
+  const al=aliveList(),par=new Int16Array(NM);for(let i=0;i<NM;i++)par[i]=i;
+  const f=x=>{while(par[x]!==x){par[x]=par[par[x]];x=par[x]}return x};
+  for(let u=0;u<al.length;u++)for(let v=u+1;v<al.length;v++){const i=al[u],j=al[v],ij=i*NM+j;if(!K[ij])continue;
+    const m=Math.min(X[ij],X[j*NM+i]),same=facOf[i]>=0&&facOf[i]===facOf[j];
+    if(m>(same?STAY:JOIN)){const a=f(i),b=f(j);if(a!==b)par[a]=b}}
+  const groups=new Map();for(const i of al){const r=f(i);if(!groups.has(r))groups.set(r,[]);groups.get(r).push(i)}
+  const G=[...groups.values()].filter(g=>g.length>=MIN_FAC).map(g=>({members:g,uids:new Set(g.map(i=>A[i].uid))}));
+  const old=facs;
+  const inter=G.map(g=>old.map(o=>{let c=0;for(const u of g.uids)if(o.uids.has(u))c++;return c}));
+  const pairs=[];G.forEach((g,gi)=>old.forEach((o,oi)=>{const c=inter[gi][oi];if(c)pairs.push([c/(g.uids.size+o.uids.size-c),gi,oi])}));
+  pairs.sort((a,b)=>b[0]-a[0]||a[1]-b[1]||a[2]-b[2]);
+  const gM=new Array(G.length).fill(-1),oM=new Array(old.length).fill(-1);
+  for(const [J,gi,oi] of pairs){if(J<MATCH_J)break;if(gM[gi]<0&&oM[oi]<0){gM[gi]=oi;oM[oi]=gi}}
+  const next=G.map((g,gi)=>{const o=gM[gi]>=0?old[gM[gi]]:null;
+    let best=-1e9,bi=g.members[0];const sc=new Map();
+    for(const i of g.members){let s=0.5*A[i].e;for(const k of g.members)s+=X[k*NM+i];sc.set(i,s);if(s>best){best=s;bi=i}}
+    if(o){const inc=g.members.find(i=>A[i].uid===o.alphaUid);if(inc!==undefined&&sc.get(inc)>=best-LEAD_MARGIN*Math.abs(best))bi=inc}
+    return{fid:o?o.fid:nextFid++,members:g.members,uids:g.uids,hue:o?o.hue:null,born:o?o.born:tick,alpha:bi,alphaUid:A[bi].uid,prev:o}});
+  // structural events
+  const splitChild=new Set(),splitParent=new Set(),absorbed=new Set();
+  old.forEach((o,oi)=>{const kids=[];G.forEach((g,gi)=>{const c=inter[gi][oi];if(c>=2&&c/g.uids.size>=0.5)kids.push(gi)});
+    if(kids.length>=2){splitParent.add(oi);kids.forEach(k=>splitChild.add(k));
+      ev("split",{fid:o.fid,parts:kids.map(k=>({fid:next[k].fid,leader:next[k].alphaUid,size:G[k].uids.size}))})}});
+  G.forEach((g,gi)=>{const src=[];old.forEach((o,oi)=>{const c=inter[gi][oi];if(c>=2&&c/o.uids.size>=0.5)src.push(oi)});
+    if(src.length>=2){const ab=src.filter(oi=>oi!==gM[gi]);ab.forEach(oi=>absorbed.add(oi));
+      ev("merge",{fid:next[gi].fid,absorbed:ab.map(oi=>old[oi].fid),leader:next[gi].alphaUid,size:g.uids.size})}});
+  next.forEach((n,gi)=>{
+    if(!n.prev&&!splitChild.has(gi))ev("faction_formed",{fid:n.fid,leader:n.alphaUid,members:[...n.uids]});
+    if(n.prev&&n.prev.alphaUid!==n.alphaUid)ev("succession",{fid:n.fid,from:n.prev.alphaUid,to:n.alphaUid,size:n.uids.size})});
+  old.forEach((o,oi)=>{if(oM[oi]<0&&!absorbed.has(oi)&&!splitParent.has(oi))ev("faction_dissolved",{fid:o.fid})});
+  // colors: keep inherited hue, deconflict new ones
+  const used=next.filter(n=>n.hue!=null).map(n=>n.hue);
+  next.forEach(n=>{if(n.hue!=null)return;let h=circHue(n.members);
+    for(let t=0;t<9;t++){if(used.some(u=>{const d=Math.abs(u-h)%360;return Math.min(d,360-d)<28}))h=(h+37)%360;else break}
+    n.hue=h;used.push(h)});
+  next.forEach(n=>{delete n.prev});
+  next.sort((a,b)=>b.members.length-a.members.length||a.fid-b.fid);
+  facs=next;facOf.fill(-1);facs.forEach((n,idx)=>{for(const i of n.members)facOf[i]=idx});
+}
+let tension=null;
+/* exact: share of closed strong triads (all |mutual affect| ≥ 0.15) that contain a hostile tie, and the share of those that are balanced (two hostile ties) */
+function computeTension(){const al=aliveList(),n=al.length,sm=new Float32Array(n*n),ok=new Uint8Array(n*n);
+  for(let a=0;a<n;a++)for(let b=a+1;b<n;b++){const i=al[a],j=al[b];if(!K[i*NM+j])continue;const v=(X[i*NM+j]+X[j*NM+i])/2;if(v>=0.15||v<=-0.15){sm[a*n+b]=sm[b*n+a]=v;ok[a*n+b]=ok[b*n+a]=1}}
+  let tri=0,ten=0,bal=0;
+  for(let a=0;a<n;a++)for(let b=a+1;b<n;b++){if(!ok[a*n+b])continue;const sab=sm[a*n+b];for(let c=b+1;c<n;c++){if(!ok[a*n+c]||!ok[b*n+c])continue;tri++;
+    const neg=(sab<0)+(sm[a*n+c]<0)+(sm[b*n+c]<0);if(neg){ten++;if(neg===2)bal++}}}
+  return{tension:tri?ten/tri:null,bal:ten?bal/ten:null}}
+function computeBalance(){const al=aliveList();
+  const nb=new Map(),S=(i,j)=>(X[i*NM+j]+X[j*NM+i])/2,ok=(i,j)=>K[i*NM+j]&&Math.abs(S(i,j))>0.15;
+  for(const i of al){const l=[];for(const j of al)if(j!==i&&ok(i,j))l.push(j);if(l.length>=2)nb.set(i,l)}
+  const keys=[...nb.keys()];if(!keys.length)return null;let cnt=0,bal=0;
+  for(let t=0;t<1500;t++){const i=keys[rng()*keys.length|0],l=nb.get(i);const j=l[rng()*l.length|0];let k=l[rng()*l.length|0];if(j===k)continue;
+    if(!ok(j,k))continue;cnt++;if(Math.sign(S(i,j))*Math.sign(S(i,k))*Math.sign(S(j,k))>0)bal++}
+  return cnt<15?null:bal/cnt}
+
+function step(){tick++;
+  const alive=aliveList(),n=alive.length;ALIVE=alive;const r5=params.rules>=5,r6=params.rules>=6&&params.provision>0,r7=params.rules>=7&&params.visit>0,r10=params.rules>=10,r11inf=params.rules>=11&&params.nurture>0;const tau=params.tau,MUc=rangeMu(),DEPc=(1-MUc)/10,vis=params.vision>0;
+  if(vis)for(const i of alive){see(i);const a=A[i];HD[i]=a.e<0.7&&a.target!==-1?Math.max(0,Math.min(1,(a.e-0.15)/0.55)):1}
+  if(tau>0)for(const i of alive){omegaAt(i,cellOf(A[i].x,A[i].y));Om[i]=OMv;Ph[i]=PHv}
+  const ax=new Float32Array(NM),ay=new Float32Array(NM);
+  for(const p of patches)p.near.length=0;
+  for(const i of alive){const a=A[i];for(const p of patches){const dx=p.x-a.x,dy=p.y-a.y;if(dx*dx+dy*dy<3600)p.near.push(i)}}
+  for(let u=0;u<n;u++){const i=alive[u],a=A[i];
+    for(let v=u+1;v<n;v++){const j=alive[v],b=A[j];const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;if(d2>19600)continue;
+      const d=Math.sqrt(d2)+0.01,ux=dx/d,uy=dy/d,ij=i*NM+j,ji=j*NM+i,xij=X[ij],xji=X[ji];
+      let fi=force(xij,d),fj=force(xji,d);
+      if(r11inf){if(a.parent===j&&a.age<INFANT_AGE&&d>=20)fi=0.04;if(b.parent===i&&b.age<INFANT_AGE&&d>=20)fj=0.04}if(vis&&d>=26){if(xij>0)fi*=HD[i];if(xji>0)fj*=HD[j]}ax[i]+=ux*fi;ay[i]+=uy*fi;ax[j]-=ux*fj;ay[j]-=uy*fj;
+      if(d<45){C[ij]=Math.min(1,C[ij]+0.02);C[ji]=C[ij];
+        if(!K[ij]&&C[ij]>0.12){K[ij]=K[ji]=1;firstContact(i,j)}
+        if(d<30&&K[ij]){const gi=r10?1-Gm[ij]:1,gj=r10?1-Gm[ji]:1;if(xij>-0.2)X[ij]=Math.min(1,X[ij]+0.0008*gi*(1+2*Math.max(0,xji)));if(xji>-0.2)X[ji]=Math.min(1,X[ji]+0.0008*gj*(1+2*Math.max(0,xij)))}
+        if(vis&&d<30&&tick%10===0&&xij>0.25&&xji>0.25){const ri=i*13,rj=j*13;for(let q=0;q<13;q++){if(KT[rj+q]>KT[ri+q]){KT[ri+q]=KT[rj+q];KF[ri+q]=KF[rj+q]}else if(KT[ri+q]>KT[rj+q]){KT[rj+q]=KT[ri+q];KF[rj+q]=KF[ri+q]}}}
+        if(r6&&d<30){if(a.load>0&&b.e<0.6)give(i,j);if(b.load>0&&a.e<0.6)give(j,i)}
+        if(tau>0){const kr=0.002*tau;
+          if(r5){const wi=0.3+0.7*TWc[cellOf(b.x,b.y)],wj=0.3+0.7*TWc[cellOf(a.x,a.y)];if(X[ij]<0.3)X[ij]=clamp(X[ij]-kr*wi*Om[i]*(1-Om[j]));if(X[ji]<0.3)X[ji]=clamp(X[ji]-kr*wj*Om[j]*(1-Om[i]));
+            if(K[ij]&&a.cd===0&&b.cd===0&&(xij+xji)<-0.6&&(Om[i]>0.5)!==(Om[j]>0.5)&&rng()<0.004*tau*(0.3+0.7*TWc[cellOf((a.x+b.x)/2,(a.y+b.y)/2)]))ENC.push(i,j)}
+          else{if(X[ij]<0.3)X[ij]=clamp(X[ij]-kr*Om[i]*(1-Om[j]));if(X[ji]<0.3)X[ji]=clamp(X[ji]-kr*Om[j]*(1-Om[i]))}}}}}
+  for(const i of alive){const a=A[i];a.age++;if(a.cd>0)a.cd--;
+    if(r6&&a.load>0&&a.e<0.45){const t=Math.min(a.load,0.012);a.load-=t;a.e+=t}
+    a.head+=(rng()-0.5)*0.35;ax[i]+=Math.cos(a.head)*0.035;ay[i]+=Math.sin(a.head)*0.035;
+    if(a.e<0.7){
+      if(vis){let re=a.target===-1;
+        if(!re&&a.target>=0&&tick-(a.eatT||-99)>5){const p=patches[a.target],d=Math.hypot(p.x-a.x,p.y-a.y);re=tick>a.tgtEnd||(d<50&&p.food/(1+p.near.length)<NEED*0.5)}
+        else if(!re&&a.target===-2)re=tick%30===i%30;
+        else if(!re&&a.target===-3)re=!a.cacheRef||a.cacheRef.food<0.05||CACHES.indexOf(a.cacheRef)<0||tick>a.tgtEnd;
+        if(re){a.target=choosePatch(i);a.tgtT=tick;if(a.target>=0){const p=patches[a.target];a.tgtEnd=tick+80+Math.hypot(p.x-a.x,p.y-a.y)/0.5}else if(a.target===-3){const c=a.cacheRef;a.tgtEnd=tick+80+Math.hypot(c.x-a.x,c.y-a.y)/0.5}}}
+      else if(a.target<0||tick%30===i%30)a.target=choosePatch(i);
+      if(a.target===-2){const dx=a.ex-a.x,dy=a.ey-a.y,d=Math.hypot(dx,dy)+0.01;if(d<20||tick-a.exT>400)pickExplore(i);else{ax[i]+=dx/d*0.06;ay[i]+=dy/d*0.06;a.head=Math.atan2(dy,dx)}}
+      if(a.target===-3&&a.cacheRef){const c=a.cacheRef,dx=c.x-a.x,dy=c.y-a.y,d=Math.hypot(dx,dy)+0.01;if(d>10){const sk=0.05+0.12*(0.7-a.e);ax[i]+=dx/d*sk;ay[i]+=dy/d*sk}else{a.vx*=0.6;a.vy*=0.6}}
+      if(a.target>=0){const p=patches[a.target],dx=p.x-a.x,dy=p.y-a.y,d=Math.hypot(dx,dy)+0.01;if(d>14){const sk=0.05+0.12*(0.7-a.e);ax[i]+=dx/d*sk;ay[i]+=dy/d*sk}else{a.vx*=0.6;a.vy*=0.6}}}
+    else if(r6&&a.load>0.02){a.target=-1;if(a.homeX==null)setHome(i);const dx=a.homeX-a.x,dy=a.homeY-a.y,d=Math.hypot(dx,dy)+0.01;
+      if(d<15)dropCache(i);else{ax[i]+=dx/d*0.06;ay[i]+=dy/d*0.06}}
+    else if(r6&&carrierP(a.uid)<params.provision&&a.e>=0.75&&(a.harvest>=0||tick%30===i%30)&&(a.harvest>=0||(a.harvest=harvestTree(i))>=0)){a.target=-1;
+      const p=patches[a.harvest],dx=p.x-a.x,dy=p.y-a.y,d=Math.hypot(dx,dy)+0.01;if(d>14){ax[i]+=dx/d*0.05;ay[i]+=dy/d*0.05}else{a.vx*=0.6;a.vy*=0.6}
+      if(p.food<0.35||a.load>=LOADMAX-0.01){a.harvest=-1;if(a.load>0.02)setHome(i)}}
+    else{a.target=-1;
+      if(r7&&a.visitSlot<0&&a.roam<0&&tick%25===i%25&&rng()<0.03*params.visit){const v=visitTarget(i);if(v>=0){a.visitSlot=v;a.visitUid=A[v].uid;a.visitEnd=tick+1500;a.visitNear=0;VISITS++}}
+      if(a.visitSlot>=0){const b=A[a.visitSlot];if(!b||b.uid!==a.visitUid||tick>a.visitEnd||a.visitNear>80)a.visitSlot=-1;
+        else{const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)+0.01;if(d>35){ax[i]+=dx/d*0.05;ay[i]+=dy/d*0.05}else a.visitNear++}}
+      if(r5){if(a.roam<0&&rng()<0.0012*(1+2*tau)){const u=rng();let et=-1;
+          if(u<0.5*params.expand&&(et=expandTree(i))>=0){a.roam=et;a.patrol=false;a.expand=true;a.stayEnd=0;a.expT=tick}
+          else if(tau>0&&rng()<0.5*tau){a.roam=frontierPatch(i);a.patrol=true;a.expand=false}else{a.roam=rng()*patches.length|0;a.patrol=false;a.expand=false}}}
+      else if(a.roam<0&&rng()<0.0012*(1+2*tau)){if(tau>0&&rng()<0.5*tau){a.roam=frontierPatch(i);a.patrol=true}else{a.roam=rng()*patches.length|0;a.patrol=false}}
+      if(a.roam>=0&&!(a.visitSlot>=0)){let tx,ty;if(vis&&!a.patrol&&!a.expand){if(a.roamX==null){pickExplore(i);a.roamX=a.ex;a.roamY=a.ey}tx=a.roamX;ty=a.roamY}else{tx=patches[a.roam].x;ty=patches[a.roam].y}
+        const dx=tx-a.x,dy=ty-a.y,d=Math.hypot(dx,dy)+0.01;ax[i]+=dx/d*0.045;ay[i]+=dy/d*0.045;
+        if(a.expand){if(d<25&&!a.stayEnd)a.stayEnd=tick+250;if(a.stayEnd){a.vx*=0.9;a.vy*=0.9}if((a.stayEnd&&tick>a.stayEnd)||tick-(a.expT||0)>1500){a.roam=-1;a.expand=false;a.stayEnd=0}}
+        else if(d<25||rng()<0.002){a.roam=-1;a.roamX=null}}}
+    a.vx=a.vx*0.88+ax[i];a.vy=a.vy*0.88+ay[i];const sp=Math.hypot(a.vx,a.vy),mx=(0.6+0.7*a.e)*(r6?1-0.8*a.load:1);
+    if(sp>mx){a.vx*=mx/sp;a.vy*=mx/sp}
+    const nx=a.x+a.vx,ny=a.y+a.vy;
+    if(water(nx,ny)){a.vx*=-0.5;a.vy*=-0.5;a.head+=Math.PI*(0.5+rng())}else{a.x=nx;a.y=ny}
+    a.e-=0.0011+0.0003*Math.min(sp,mx);deposit(i,r5?DEPc*(0.25+0.75*TWc[cellOf(a.x,a.y)]):DEPc)}
+  const regrow=0.012*(1-0.82*params.scarcity),FR2=vis?36*36:484;
+  for(let pidx=0;pidx<patches.length;pidx++){const p=patches[pidx];p.food=Math.min(p.max,p.food+regrow);
+    for(const i of p.near){const a=A[i];const dx=p.x-a.x,dy=p.y-a.y;
+      if(dx*dx+dy*dy<FR2&&a.e<0.97&&p.food>0.01){const t=Math.min(0.012,p.food);p.food-=t;a.e=Math.min(1,a.e+t);a.vx*=0.85;a.vy*=0.85;a.eatT=tick}
+      if(r6&&dx*dx+dy*dy<FR2&&a.e>=0.75&&a.load<LOADMAX&&p.food>0.3&&carrierP(a.uid)<params.provision&&(tau===0||Om[i]>0.4)){const t=Math.min(0.008,LOADMAX-a.load,p.food-0.3);if(a.load===0)setHome(i);a.load+=t;p.food-=t}}
+    if(p.near.length>=2&&p.food<p.near.length*0.25&&rng()<0.005*p.near.length)tryFight(p,pidx)}
+  if(CACHES.length){for(const c of CACHES){c.food*=0.9995;for(const i of alive){const a=A[i];if(!a||a.e>=0.97||c.food<0.01)continue;const dx=c.x-a.x,dy=c.y-a.y;if(dx*dx+dy*dy<CACHE_R*CACHE_R){const t=Math.min(0.012,c.food);c.food-=t;a.e=Math.min(1,a.e+t);a.eatT=tick}}}
+    CACHES=CACHES.filter(c=>c.food>0.005||tick-c.born<500)}
+  if(ENC.length){for(let q=0;q<ENC.length;q+=2){const i=ENC[q],j=ENC[q+1];if(A[i]&&A[j]&&A[i].cd===0&&A[j].cd===0)fight(i,j,(A[i].x+A[j].x)/2,(A[i].y+A[j].y)/2,-1,"border")}ENC.length=0}
+  for(const i of alive){const a=A[i];if(!a)continue;
+    if(a.e<=0){kill(i,"starved");continue}
+    if(a.age>a.maxAge){kill(i,"old_age");continue}
+    if(a.e>0.85&&a.age>20*TPD&&a.cd===0&&popCount<POPCAP&&rng()<0.004)birth(i)}
+  if(popCount===0&&!extinct){extinct=true;ev("extinction",{})}
+  if(tick%5===0){if(params.rules>=10&&params.assim>0)assimilate();updateAffect()}
+  if(tick%10===0){for(let q=0;q<NM*NC;q++)Hm[q]*=MUc;for(let c=0;c<NC;c++)U[c]*=MUc;computeFactions();computeTerritory();if(tick%50===0){checkTrees();computeFiltration();if(params.rules>=5)computeRelations()}}
+  if(tick%20===0){if(params.rules>=9){if(tick%100===0||tension==null){const t=computeTension();balance=t.bal;tension=t.tension}}else balance=computeBalance();
+    rec.series.push(params.rules>=9?[tick,popCount,facs.length,balance==null?null:r3(balance),r3(SHARED),r3(CACHED),tension==null?null:Math.round(tension*1e5)/1e5]:params.rules>=6?[tick,popCount,facs.length,balance==null?null:r3(balance),r3(SHARED),r3(CACHED)]:[tick,popCount,facs.length,balance==null?null:r3(balance)]);SHARED=0;CACHED=0;
+    hist.pop.push(popCount);hist.fac.push(facs.length);hist.bal.push(params.rules>=9?(tension==null?NaN:tension*100):balance==null?NaN:balance*100);
+    for(const k in hist)if(hist[k].length>240)hist[k].shift()}
+  if(tick%SNAP_EVERY===0)snapshot();
+}
+
+/* ---------- parameters and replay ---------- */
+function setParam(k,v){params[k]=v;
+  const pc=rec.paramChanges,last=pc[pc.length-1];
+  if(last&&last.t===tick&&last.k===k)last.v=v;else pc.push({t:tick,k,v});
+  if(HAS_DOM)syncSlider(k)}
+let syncSlider=()=>{};
+function validRun(r){return r&&r.format==="troop-politics-run"&&typeof r.seed==="number"&&r.params0&&Array.isArray(r.paramChanges)&&Number.isFinite(r.endTick)}
+/* replays a saved run; calls onProgress(tick,end); resolves with {match, divergedAt} */
+function replay(r,onProgress){
+  return new Promise(resolve=>{
+    replaying=true;
+    const OLD_DEFAULTS={tau:0,bond:0,kin:0,rangeDays:0,vision:0,assess:0,expand:0,provision:0,visit:0,party:0,read:1,caution:0,assim:0,nurture:0,dispersal:1,consensus:0,rules:4};Object.keys(params).forEach(k=>{params[k]=k in r.params0?r.params0[k]:(k in OLD_DEFAULTS?OLD_DEFAULTS[k]:params[k])});
+    reset(r.seed);
+    const ch=r.paramChanges.slice().sort((a,b)=>a.t-b.t);let ci=0;
+    const applyDue=()=>{while(ci<ch.length&&ch[ci].t<=tick){setParam(ch[ci].k,ch[ci].v);ci++}};
+    const chunk=()=>{const stop=Math.min(r.endTick,tick+600);
+      while(tick<stop){applyDue();step()}
+      applyDue();
+      if(onProgress)onProgress(tick,r.endTick);
+      if(tick<r.endTick){HAS_DOM?setTimeout(chunk,0):chunk();return}
+      replaying=false;
+      const mine=r.version==="1.1"?rec.events.filter(e=>!TERR_TYPES.has(e.type)):rec.events;
+      const match=fnv(JSON.stringify(mine))===r.eventHash;let divergedAt=null;
+      if(!match&&Array.isArray(r.events)){const n=Math.min(r.events.length,mine.length);
+        for(let q=0;q<n;q++)if(JSON.stringify(r.events[q])!==JSON.stringify(mine[q])){divergedAt=r.events[q].t;break}}
+      resolve({match,divergedAt})};
+    chunk()})}
+
+/* ---------- headless hook for testing ---------- */
+if(!HAS_DOM){globalThis.__sim={reset,step,replay,setParam,finalizeRecord,get:()=>({Gm,tension,BYST,Pm,VISITS,CACHES,facRel,Bm,Rk,filt,A,X,K,facs,popCount,balance,tick,rec,terr,treeOwner,landCells,Hm,U}),params};readTokens();return}
+
+/* ---------- drawing ---------- */
+const map=document.getElementById("map"),mctx=map.getContext("2d"),heat=document.getElementById("heat"),hctx=heat.getContext("2d");
+const off=document.createElement("canvas"),octx=off.getContext("2d");
+let dpr=1,lastUI=-99,reduce=matchMedia("(prefers-reduced-motion: reduce)").matches,showTerr=true;
+const tcan=document.createElement("canvas");tcan.width=CW;tcan.height=CH;const tctx=tcan.getContext("2d");
+function hslRGB(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));return[255*f(0),255*f(8),255*f(4)]}
+const facRGB=h=>T.dark?hslRGB(h,58,62):hslRGB(h,60,40);
+function drawTerritory(){const hueOf=new Map(facs.map(f=>[f.fid,f.hue]));const img=tctx.createImageData(CW,CH),d=img.data;
+  for(let c=0;c<NC;c++){const f=terr.owner[c];if(!f||!hueOf.has(f))continue;const rgb=facRGB(hueOf.get(f)),o=c*4;
+    d[o]=rgb[0];d[o+1]=rgb[1];d[o+2]=rgb[2];d[o+3]=Math.round(255*Math.min(0.34,0.12+0.4*(terr.share[c]-0.5)))}
+  tctx.putImageData(img,0,0);mctx.imageSmoothingEnabled=true;mctx.drawImage(tcan,0,0,W,H);
+  mctx.lineWidth=1.6;mctx.setLineDash([6,3]);
+  for(const f of facs){const sg=terr.segs.get(f.fid);if(!sg||!sg.length)continue;mctx.beginPath();
+    for(let q=0;q<sg.length;q+=4){mctx.moveTo(sg[q],sg[q+1]);mctx.lineTo(sg[q+2],sg[q+3])}
+    mctx.strokeStyle=facColor(f.hue,0.85);mctx.stroke()}
+  mctx.setLineDash([])}
+/* a young unaffiliated animal whose living parent is in a faction is drawn as that faction's dependent (display only) */
+function depFac(i){const a=A[i];if(!a||a.age>=60*TPD||a.parent<0||!A[a.parent])return -1;return facOf[a.parent]}
+function facColor(h,al=1){return T.dark?`hsla(${h},58%,62%,${al})`:`hsla(${h},60%,40%,${al})`}
+function traitColor(h){return T.dark?`hsl(${h},40%,60%)`:`hsl(${h},42%,48%)`}
+function sizeCanvases(){dpr=Math.min(2,window.devicePixelRatio||1);
+  const r=map.getBoundingClientRect();map.width=Math.round(r.width*dpr);map.height=Math.round(r.width*dpr*H/W);
+  const hr=heat.getBoundingClientRect();heat.width=Math.round(hr.width*dpr);heat.height=Math.round(hr.width*dpr);
+  for(const id of ["sp-pop","sp-fac","sp-bal","filtc"]){const c=document.getElementById(id),b=c.getBoundingClientRect();c.width=Math.round(b.width*dpr);c.height=Math.round(b.height*dpr)}
+  uiDirty=true}
+
+function draw(){const s=map.width/W;mctx.setTransform(1,0,0,1,0,0);mctx.clearRect(0,0,map.width,map.height);mctx.setTransform(s,0,0,s,0,0);
+  mctx.imageSmoothingEnabled=true;mctx.drawImage(terrainCanvas,0,0,W,H);
+  const R=T.rgb;if(showTerr)drawTerritory();
+  const hueOf=new Map(facs.map(f=>[f.fid,f.hue]));
+  mctx.font='500 9px "IBM Plex Mono", ui-monospace, monospace';mctx.textAlign="left";
+  patches.forEach((p,pi)=>{const r=5+p.food*3,ow=treeOwner[pi];mctx.beginPath();mctx.arc(p.x,p.y,r,0,6.283);
+    mctx.fillStyle=css(R.food,0.15+0.3*p.food/p.max);mctx.fill();mctx.lineWidth=ow&&hueOf.has(ow)?2.2:1.2;mctx.strokeStyle=ow&&hueOf.has(ow)?facColor(hueOf.get(ow)):css(R.food,0.85);mctx.stroke();
+    mctx.beginPath();mctx.arc(p.x,p.y,1.6,0,6.283);mctx.fillStyle=css(R.food,1);mctx.fill();
+    mctx.fillStyle=css(R.muted);mctx.fillText(String(pi+1),p.x+r+2,p.y+3)})
+  const al=aliveList();
+  if(showEdges){const buckets={};
+    for(let u=0;u<al.length;u++){const i=al[u];for(let v=u+1;v<al.length;v++){const j=al[v];if(!K[i*NM+j]||C[i*NM+j]<0.15)continue;
+      const sv=(X[i*NM+j]+X[j*NM+i])/2,m=Math.abs(sv);if(m<0.06)continue;const lv=Math.min(3,m*4|0),key=(sv>0?"a":"h")+lv;
+      (buckets[key]||(buckets[key]=[])).push(i,j)}}
+    const AL=[0.18,0.32,0.5,0.72],LW=[0.6,0.9,1.3,1.9];
+    for(const key in buckets){const arr=buckets[key],lv=+key[1];mctx.beginPath();
+      for(let q=0;q<arr.length;q+=2){const a=A[arr[q]],b=A[arr[q+1]];mctx.moveTo(a.x,a.y);mctx.lineTo(b.x,b.y)}
+      mctx.strokeStyle=css(key[0]==="a"?R.ally:R.hostile,AL[lv]);mctx.lineWidth=LW[lv];mctx.stroke()}}
+  if(selected>=0&&A[selected]){const a=A[selected];
+    for(const j of al){if(j===selected)continue;const v=X[selected*NM+j];if(Math.abs(v)<0.08)continue;const b=A[j];
+      mctx.beginPath();mctx.moveTo(a.x,a.y);mctx.lineTo(b.x,b.y);mctx.setLineDash(K[selected*NM+j]?[]:[4,4]);
+      mctx.strokeStyle=css(v>0?R.ally:R.hostile,0.35+0.6*Math.abs(v));mctx.lineWidth=0.8+2*Math.abs(v);mctx.stroke()}
+    mctx.setLineDash([])}
+  for(let q=flashes.length-1;q>=0;q--){const f=flashes[q];f.t+=reduce?40:1;if(f.t>=40){flashes.splice(q,1);continue}
+    mctx.beginPath();mctx.arc(f.x,f.y,10+f.t*(0.6+f.n*0.1),0,6.283);mctx.strokeStyle=css(f.kind==="display"?R.accent:R.hostile,1-f.t/40);mctx.lineWidth=2;if(f.kind==="display")mctx.setLineDash([3,3]);mctx.stroke();mctx.setLineDash([])}
+  for(const c of CACHES){const sz=3+Math.min(8,c.food*4),o=terr.owner[cellOf(c.x,c.y)];mctx.fillStyle=css(R.food,0.25+0.5*Math.min(1,c.food));mctx.fillRect(c.x-sz,c.y-sz,2*sz,2*sz);
+    mctx.lineWidth=1.4;mctx.strokeStyle=o&&hueOf.has(o)?facColor(hueOf.get(o)):css(R.food);mctx.strokeRect(c.x-sz,c.y-sz,2*sz,2*sz)}
+  if(showTerr)for(const r of facRel.values()){if(!r.state||!r.ca||!r.cb)continue;mctx.beginPath();mctx.moveTo(r.ca[0],r.ca[1]);mctx.lineTo(r.cb[0],r.cb[1]);
+    mctx.setLineDash(r.state>0?[]:[8,5]);mctx.strokeStyle=css(r.state>0?R.ally:R.hostile,0.55);mctx.lineWidth=3;mctx.stroke();mctx.setLineDash([])}
+  const alphas=new Set(facs.map(f=>f.alpha));
+  for(const i of al){const a=A[i],juv=a.age<20*TPD,r=(juv?2.6:4)+2.2*a.e,fi=facOf[i];
+    mctx.beginPath();mctx.arc(a.x,a.y,r,0,6.283);
+    const dep=fi<0?depFac(i):-1;mctx.fillStyle=colorMode==="faction"?(fi>=0?facColor(facs[fi].hue):dep>=0?facColor(facs[dep].hue,0.45):css(R.neutral)):traitColor(a.hue);mctx.fill();
+    mctx.lineWidth=1;mctx.strokeStyle=css(R.bg,0.9);mctx.stroke();
+    if(a.load>0.02){mctx.beginPath();mctx.arc(a.x+r*0.7,a.y-r*0.7,1.8+3*a.load,0,6.283);mctx.fillStyle=css(R.food);mctx.fill()}
+    if(colorMode==="lineage"&&fi>=0){mctx.beginPath();mctx.arc(a.x,a.y,r+2.4,0,6.283);mctx.strokeStyle=facColor(facs[fi].hue);mctx.lineWidth=1.8;mctx.stroke()}}
+  mctx.font='500 10px "IBM Plex Mono", ui-monospace, monospace';mctx.textAlign="center";
+  for(const i of al){if(!alphas.has(i)&&i!==selected)continue;const a=A[i];const fi=facOf[i];
+    const lbl=(alphas.has(i)&&fi>=0?`F${facs[fi].fid} `:"")+a.name;
+    mctx.lineWidth=3;mctx.strokeStyle=css(R.bg,0.85);mctx.strokeText(lbl,a.x,a.y-11);mctx.fillStyle=css(R.ink);mctx.fillText(lbl,a.x,a.y-11)}
+  if(selected>=0&&A[selected]&&params.vision>0){const a=A[selected];mctx.beginPath();mctx.arc(a.x,a.y,params.vision,0,6.283);mctx.setLineDash([2,4]);mctx.strokeStyle=css(R.accent,0.6);mctx.lineWidth=1;mctx.stroke();mctx.setLineDash([]);
+    patches.forEach((p,pi)=>{if(KT[selected*13+pi]>=0){mctx.beginPath();mctx.arc(p.x,p.y,4,0,6.283);mctx.fillStyle=css(R.accent,0.9);mctx.fill()}});
+    if(a.target===-2){mctx.beginPath();mctx.moveTo(a.x,a.y);mctx.lineTo(a.ex,a.ey);mctx.setLineDash([2,3]);mctx.strokeStyle=css(R.accent,0.7);mctx.stroke();mctx.setLineDash([])}}
+  if(selected>=0&&A[selected]){const a=A[selected];mctx.beginPath();mctx.arc(a.x,a.y,11,0,6.283);mctx.strokeStyle=css(R.accent);mctx.lineWidth=2;mctx.stroke()}
+}
+
+function drawHeat(){const al=aliveList();const n=al.length;
+  document.getElementById("heatn").textContent=n+" × "+n;
+  hctx.setTransform(1,0,0,1,0,0);hctx.fillStyle=css(T.rgb.panel);hctx.fillRect(0,0,heat.width,heat.height);if(!n)return;
+  al.sort((a,b)=>{const fa=facOf[a]<0?999:facOf[a],fb=facOf[b]<0?999:facOf[b];return fa-fb||A[a].hue-A[b].hue});
+  off.width=n;off.height=n;const img=octx.createImageData(n,n),d=img.data,P=T.rgb.panel,AL=T.rgb.ally,HO=T.rgb.hostile,RU=T.rgb.rule;
+  for(let r=0;r<n;r++){const i=al[r];for(let c=0;c<n;c++){const j=al[c],o=(r*n+c)*4;let col;
+    if(i===j)col=RU;else{const v=X[i*NM+j];col=v>=0?mix(P,AL,Math.pow(v,0.6)):mix(P,HO,Math.pow(-v,0.6))}
+    d[o]=col[0];d[o+1]=col[1];d[o+2]=col[2];d[o+3]=255}}
+  octx.putImageData(img,0,0);hctx.imageSmoothingEnabled=false;hctx.drawImage(off,0,0,heat.width,heat.height);
+  const cs=heat.width/n;hctx.strokeStyle=css(T.rgb.ink,0.55);hctx.lineWidth=Math.max(1,dpr);let pos=0;
+  for(let q=0;q<facs.length;q++){const sz=facs[q].members.filter(i=>A[i]).length;hctx.strokeRect(pos*cs,pos*cs,sz*cs,sz*cs);pos+=sz}
+}
+function spark(id,arr,max){const c=document.getElementById(id),ctx=c.getContext("2d"),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);
+  const v=arr.filter(x=>!isNaN(x));if(v.length<2)return;const mx=max!=null?max:Math.max(...v)*1.1||1,mn=max!=null?0:Math.min(...v)*0.9;
+  ctx.beginPath();let first=true,lx=0,ly=0;
+  arr.forEach((x,k)=>{if(isNaN(x))return;const px=k/(arr.length-1)*(w-4*dpr)+2*dpr,py=h-2*dpr-(x-mn)/((mx-mn)||1)*(h-4*dpr);
+    if(first){ctx.moveTo(px,py);first=false}else ctx.lineTo(px,py);lx=px;ly=py});
+  ctx.strokeStyle=css(T.rgb.ink,0.75);ctx.lineWidth=1.2*dpr;ctx.stroke();
+  ctx.beginPath();ctx.arc(lx,ly,2.4*dpr,0,6.283);ctx.fillStyle=css(T.rgb.accent);ctx.fill()}
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function facName(f){return `F${f.fid} · ${A[f.alpha]?A[f.alpha].name:"?"}`}
+function recSizeText(){const n=rec.events.length,s=rec.snapshots.length;
+  const bytes=recBytes+rec.series.length*24;
+  return `${Math.floor(tick/TPD).toLocaleString()} days · ${n.toLocaleString()} events · ${s} snapshots · ~${bytes>1e6?(bytes/1e6).toFixed(1)+" MB":Math.max(1,Math.round(bytes/1e3))+" KB"}`}
+function updateUI(){lastUI=tick;uiDirty=false;
+  document.getElementById("day").textContent="Day "+Math.floor(tick/TPD);
+  document.getElementById("v-pop").textContent=popCount;
+  document.getElementById("v-fac").textContent=facs.length;
+  if(params.rules>=9){document.getElementById("l-bal").textContent="Tense triads";document.getElementById("v-bal").textContent=tension==null?"–":(tension*100).toFixed(tension<0.1?1:0)+"%";
+    document.getElementById("s-bal").textContent=balance==null?"none hostile":`${Math.round(balance*100)}% balanced`;spark("sp-pop",hist.pop);spark("sp-fac",hist.fac);spark("sp-bal",hist.bal)}
+  else{document.getElementById("l-bal").textContent="Balanced triads";document.getElementById("v-bal").textContent=balance==null?"–":Math.round(balance*100)+"%";document.getElementById("s-bal").textContent="";
+    spark("sp-pop",hist.pop);spark("sp-fac",hist.fac);spark("sp-bal",hist.bal,100)}
+  let un=0;for(let i=0;i<NM;i++)if(A[i]&&facOf[i]<0)un++;
+  document.getElementById("unaff").textContent=un?un+" unaffiliated":"";
+  const fl=document.getElementById("facs");
+  fl.innerHTML=facs.length?facs.slice(0,7).map(f=>`<li><i class="sw" style="background:${facColor(f.hue)}"></i><button data-sel="${f.alpha}"><span class="fid">F${f.fid}</span>${A[f.alpha]?esc(A[f.alpha].name)+"'s faction":"leaderless"}</button><span class="n">${f.members.length} · ${Math.round(100*(terr.area.get(f.fid)||0)/landCells)}% · ${Math.floor((tick-f.born)/TPD)}d</span></li>`).join("")+(facs.length>7?`<li><i></i><span class="n">+ ${facs.length-7} smaller</span><i></i></li>`:""):`<li><p class="empty">No stable alliances yet.</p></li>`;
+  const evs=rec.events,start=Math.max(0,evs.length-40);let html="";
+  for(let q=evs.length-1;q>=start;q--){const e=evs[q];html+=`<li class="${KIND[e.type]||""}"><span class="t">Day ${Math.floor(e.t/TPD)}</span><i class="d"></i><span>${esc(eventText(e))}</span></li>`}
+  document.getElementById("log").innerHTML=html;
+  const rl=[...facRel.values()].filter(r=>r.state).sort((a,b)=>Math.abs(b.state>0?b.lo:b.hi)-Math.abs(a.state>0?a.lo:a.hi));
+  document.getElementById("rels").innerHTML=rl.length?rl.slice(0,6).map(r=>`<li><span class="rk ${r.state>0?"ally":"rival"}">${r.state>0?"Allies":"Rivals"}</span><span>F${r.a} · F${r.b}</span><span class="n">${r.state>0?"+":"−"}${Math.round(Math.abs(r.state>0?r.lo:r.hi)*100)}</span></li>`).join(""):`<li class="er"><p class="empty">No alliances or rivalries yet. Two factions are allies when members of each, on average, feel more than +12 toward the other, and rivals below −12.</p></li>`;
+  document.getElementById("recline").textContent=recSizeText();
+  drawHeat();drawFilt();inspector()}
+function drawFilt(){const c=document.getElementById("filtc"),ctx=c.getContext("2d"),w=c.width,h=c.height,R=T.rgb;ctx.clearRect(0,0,w,h);
+  const n=popCount||1,padL=26*dpr,padB=16*dpr,padT=6*dpr,pw=w-padL-18*dpr,ph=h-padB-padT;
+  const X0=q=>padL+q/(FILT_N-1)*pw,Y0=v=>padT+ph-(v/n)*ph;
+  ctx.font=`${10*dpr}px "IBM Plex Mono", ui-monospace, monospace`;ctx.fillStyle=css(R.muted);ctx.strokeStyle=css(R.rule);ctx.lineWidth=dpr;
+  ctx.textAlign="right";for(const v of [0,Math.round(n/2),n]){ctx.beginPath();ctx.moveTo(padL,Y0(v));ctx.lineTo(padL+pw,Y0(v));ctx.stroke();ctx.fillText(String(v),padL-4*dpr,Y0(v)+3*dpr)}
+  ctx.textAlign="center";[[0,"+100"],[20,"0"],[40,"−100"]].forEach(([q,l])=>ctx.fillText(l,X0(q),h-3*dpr));
+  ctx.setLineDash([3*dpr,3*dpr]);ctx.strokeStyle=css(R.accent);ctx.beginPath();ctx.moveTo(X0(15),padT);ctx.lineTo(X0(15),padT+ph);ctx.stroke();ctx.setLineDash([]);
+  ctx.beginPath();for(let q=0;q<FILT_N;q++){const x=X0(q),y=Y0(filt[q]);if(q===0)ctx.moveTo(x,y);else{ctx.lineTo(x,Y0(filt[q-1]));ctx.lineTo(x,y)}}
+  ctx.strokeStyle=css(R.ink);ctx.lineWidth=1.6*dpr;ctx.stroke();
+  document.getElementById("filtn").textContent=`at +25: ${filt[15]} groups`}
+function groundText(i){const a=A[i],c=cellOf(a.x,a.y),o=terr.owner[c],fi=facOf[i];omegaAt(i,c);
+  const whose=!o?"unclaimed ground":fi>=0&&facs[fi].fid===o?`its own faction's ground (F${o})`:`F${o} ground`;
+  return `${whose}; belonging ${Math.round(OMv*100)}, hostile use ${Math.round(PHv*100)}`}
+function relRow(j,v){const pct=Math.round(Math.abs(v)*100);
+  return `<div class="rel"><button data-sel="${j}">${esc(A[j].name)}</button><div class="bar"><i style="width:${pct}%;background:var(${v>0?"--ally":"--hostile"})"></i></div><span class="num">${v>0?"+":"−"}${pct}</span></div>`}
+function inspector(){const el=document.getElementById("insp");
+  if(selected<0||!A[selected]){el.innerHTML=`<p class="empty">Click an animal on the map to see who it trusts, who it hates, and which opinions it picked up secondhand. Faction leaders are labeled.</p>`;return}
+  const i=selected,a=A[i],fi=facOf[i],ro=i*NM;const pos=[],neg=[];let gos=0;
+  for(let j=0;j<NM;j++){if(j===i||!A[j])continue;const v=X[ro+j];if(!K[ro+j]&&Math.abs(v)>0.08)gos++;if(v>0.05)pos.push([j,v]);else if(v<-0.05)neg.push([j,v])}
+  pos.sort((p,q)=>q[1]-p[1]);neg.sort((p,q)=>p[1]-q[1]);
+  let kids=0;for(const b of A)if(b&&b.parent===i)kids++;
+  const fac=fi>=0?facs[fi]:null,color=fac?facColor(fac.hue):css(T.rgb.neutral);
+  el.innerHTML=`<div class="insp-head"><div class="insp-name"><i class="sw" style="background:${color}"></i>${esc(a.name)}</div><span class="insp-meta">${fac&&fac.alpha===i?`Leader of F${fac.fid}`:fac?esc(facName(fac)):depFac(i)>=0?`Dependent in F${facs[depFac(i)].fid}`:"Unaffiliated"}</span></div>
+  <dl class="kv"><dt>Born into</dt><dd>${esc(bandInfo[a.band].name)} band</dd><dt>Age</dt><dd>${Math.floor(a.age/TPD)} days</dd>
+  <dt>Energy</dt><dd>${Math.round(a.e*100)}%</dd><dt>Kin</dt><dd>${a.parentName?"child of "+esc(a.parentName):"founder"}${kids?`, ${kids} ${kids===1?"child":"children"}`:""}</dd><dt>Knows</dt><dd>${params.vision>0?(()=>{let k=0;for(let q=0;q<patches.length;q++)if(KT[i*13+q]>=0)k++;return k+" of "+patches.length+" trees"})():"every tree"}${a.e<0.7?" · "+(["foraging on its own ground","foraging on unoccupied ground","foraging on foreign ground","exploring for food"][a.forageCat]||"foraging"):""}</dd>${a.visitSlot>=0&&A[a.visitSlot]?`<dt>Visiting</dt><dd>${esc(A[a.visitSlot].name)}</dd>`:""}${params.rules>=6?`<dt>Carrying</dt><dd>${a.load>0.02?`${Math.round(a.load*100)} units, heading home`:carrierP(a.uid)<params.provision?"nothing (a carrier)":"nothing (not inclined to carry)"}</dd>`:""}<dt>Close kin alive</dt><dd>${(()=>{let n=0;for(let j=0;j<NM;j++)if(A[j]&&j!==i&&Rk[i*NM+j]>=0.125)n++;return n})()} (relatedness ≥ 1/8)</dd><dt>ID</dt><dd>#${a.uid}</dd><dt>Standing on</dt><dd>${groundText(i)}</dd></dl>
+  <div class="rel-h">Strongest affection</div><div class="rels">${pos.slice(0,4).map(p=>relRow(p[0],p[1])).join("")||'<p class="empty">None</p>'}</div>
+  <div class="rel-h">Strongest hostility</div><div class="rels">${neg.slice(0,4).map(p=>relRow(p[0],p[1])).join("")||'<p class="empty">None</p>'}</div>
+  ${params.rules>=10?(()=>{const gr=[];for(let k=0;k<NM;k++)if(A[k]&&k!==i&&Gm[ro+k]>0.1)gr.push([k,Gm[ro+k]]);gr.sort((u,v)=>v[1]-u[1]);
+    return gr.length?`<div class="rel-h">Grudges</div>${gr.slice(0,3).map(g=>`<p class="mis"><button data-sel="${g[0]}">${esc(A[g[0]].name)}</button>: ${Math.round(g[1]*100)}</p>`).join("")}`:""})():""}
+  ${beliefsOn()?(()=>{const mj=[];for(let k=0;k<NM;k++){if(k===i||!A[k]||!K[ro+k])continue;const b=Pm[ro+k],t=X[k*NM+i];if(Math.abs(b-t)>0.25)mj.push([k,b,t])}
+    mj.sort((u,v)=>Math.abs(v[1]-v[2])-Math.abs(u[1]-u[2]));const f=v=>(v>=0?"+":"−")+Math.round(Math.abs(v)*100);
+    return `<div class="rel-h">Misjudges</div>${mj.length?mj.slice(0,3).map(m=>`<p class="mis"><button data-sel="${m[0]}">${esc(A[m[0]].name)}</button>: thinks ${f(m[1])}, really ${f(m[2])}</p>`).join(""):'<p class="empty">No one by more than 25 points.</p>'}`})():""}
+  <p class="gossip">${gos} opinion${gos===1?"":"s"} about animals ${esc(a.name)} has never met, formed through gossip. Dashed lines on the map.</p>`}
+
+/* ---------- controls ---------- */
+const SL=[["lambda","λ","Forgetting","Pull of every feeling back toward neutral.",0,0.02,0.0005],
+  ["beta","β","Gossip","How strongly companions' feelings shape your own.",0,0.3,0.005],
+  ["gamma","γ","Enemy of my enemy","0: only friends are believed. 1: enemies' views count too, inverted. High values drive the range toward two blocs.",0,1,0.05],
+  ["bias","b","In-group bias","How much lineage resemblance colors a first meeting.",0,1,0.05],
+  ["scarcity","s","Scarcity","How slowly fruit grows back.",0,1,0.05],
+  ["aggr","a","Aggression","How readily hunger turns a cool relation into a fight.",0,1,0.05],
+  ["sigma","σ","Noise","Random drift in relations between animals that have met.",0,0.05,0.001],
+  ["tau","τ","Territoriality","How much where you stand matters: home advantage, defending ground, patrols, resentment of intruders. 0 gives v1.1 behavior.",0,1,0.05],
+  ["bond","ψ","Bond memory","How strongly a long shared history holds a feeling in place while two animals are apart.",0,1,0.05],
+  ["kin","κ","Kinship","How strongly relatedness pulls feeling up, even across distance. Relatedness halves each generation.",0,1,0.05],
+  ["rangeDays","m","Range memory","How many days a place stays part of an animal's range after it stops going there. Longer memory makes borders persist.",10,400,10],
+  ["vision","v","Vision","How far an animal sees fruit trees, in pixels. It remembers what it saw and learns from friends. 0 means it knows every tree.",0,400,10],
+  ["assess","q","Assessment","How carefully animals weigh the odds before fighting. They attack only with a clear advantage, face off when evenly matched, and back down from stronger sides. 0 means every hostile encounter is a fight.",0,1,0.05],
+  ["expand","ε","Expansion","How often fed animals go to settle a nearby unoccupied tree they know about.",0,1,0.05],
+  ["party","π","Party radius","How far away a liked animal still pulls on an animal, in pixels. Smaller lets a faction spread over several trees in separate parties; 140 is the original behavior.",50,140,5],
+  ["read","ω","Readability","How accurately animals read how others feel about them. Below 1, each one infers support from contact and from who sides with whom, and otherwise assumes its feelings are returned. 1 means everyone knows exactly.",0,1,0.05],
+  ["caution","χ","Bystander caution","How much a bystander weighs the risk of ending up on the losing side against how much it cares who wins and how much it would change the outcome. 0 means anyone with a preference joins.",0,3,0.1],
+  ["consensus","c","Consensus","How strongly a hungry animal favors the tree its liked party members are already heading for. Parties converge on shared destinations without a leader.",0,2,0.1],
+  ["nurture","η","Nurture","How strongly animals feel for the young of those they like, until the young are grown. High for communal species; 0 means newborns get only half the affection others feel for their parent.",0,1,0.05],
+  ["dispersal","δ","Natal dispersal","How far juveniles roam from their natal group when looking for food. 0 keeps them home, as in communal species; 1 sends them 200–500 px away, as in species where the young emigrate.",0,1,0.05],
+  ["assim","α","Assimilation","How quickly an animal with few ties of its own comes to like the animals whose ground it is living on, and they come to accept it. Animals with strong ties are unaffected.",0,1,0.05],
+  ["visit","ν","Visiting","How often fed animals go to find a friend they have not seen for a while, keeping ties alive across distance.",0,1,0.05],
+  ["provision","ρ","Provisioning","Share of animals inclined to carry fruit home. Carriers give to hungry animals by relatedness, bond and affect, and store the rest in caches near the center of their range.",0,1,0.05]];
+const sl=document.getElementById("sliders");
+sl.innerHTML=SL.map(([k,sym,lab,hint,mn,mx,st])=>`<div class="sl"><label for="s_${k}"><span><span class="sym">${sym}</span>${lab}</span><output id="o_${k}"></output></label><input type="range" id="s_${k}" min="${mn}" max="${mx}" step="${st}" value="${params[k]}"><p class="hint">${hint}</p></div>`).join("");
+const fmt=(k,v)=>k==="lambda"?v.toFixed(4):k==="sigma"?v.toFixed(3):k==="rangeDays"?(v>0?Math.round(v)+" d":"27 d"):k==="vision"?(v>0?Math.round(v)+" px":"all"):k==="party"?Math.round(v)+" px":v.toFixed(2);
+syncSlider=k=>{const inp=document.getElementById("s_"+k),o=document.getElementById("o_"+k);if(inp){inp.value=params[k];o.textContent=fmt(k,params[k])}};
+SL.forEach(([k])=>{const inp=document.getElementById("s_"+k);syncSlider(k);
+  inp.addEventListener("input",()=>{if(replaying)return;setParam(k,+inp.value)})});
+const playB=document.getElementById("play");
+function setRunning(v){running=v;playB.textContent=v?"Pause":"Play"}
+playB.addEventListener("click",()=>{if(!replaying)setRunning(!running)});
+document.getElementById("stepb").addEventListener("click",()=>{if(replaying)return;setRunning(false);for(let q=0;q<TPD;q++)step();updateUI()});
+function setSeg(attr,val){document.querySelectorAll(`[data-${attr}]`).forEach(b=>b.setAttribute("aria-pressed",String(b.dataset[attr]===String(val))))}
+document.querySelectorAll("[data-speed]").forEach(b=>b.addEventListener("click",()=>{speed=+b.dataset.speed;setSeg("speed",speed)}));
+document.querySelectorAll("[data-color]").forEach(b=>b.addEventListener("click",()=>{colorMode=b.dataset.color;setSeg("color",colorMode)}));
+document.getElementById("edges").addEventListener("change",e=>{showEdges=e.target.checked});
+document.getElementById("terrchk").addEventListener("change",e=>{showTerr=e.target.checked});
+const bandSel=document.getElementById("bands");
+bandSel.addEventListener("change",e=>{params.bands=+e.target.value});
+function fresh(s){if(replaying)return;reset(s);document.getElementById("seed").textContent="World seed "+seed;setStatus("");updateUI()}
+document.getElementById("neww").addEventListener("click",()=>fresh());
+document.getElementById("restart").addEventListener("click",()=>fresh(seed));
+document.addEventListener("click",e=>{const t=e.target.closest("[data-sel]");if(!t)return;const v=+t.dataset.sel;if(A[v]){selected=v;uiDirty=true}});
+function pick(e){const r=map.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*W,y=(e.clientY-r.top)/r.height*H;let best=-1,bd=16*16;
+  for(let i=0;i<NM;i++){const a=A[i];if(!a)continue;const d=(a.x-x)**2+(a.y-y)**2;if(d<bd){bd=d;best=i}}return best}
+map.addEventListener("click",e=>{selected=pick(e);uiDirty=true});
+map.addEventListener("pointermove",e=>{map.style.cursor=pick(e)>=0?"pointer":"default"});
+
+/* ---------- field record: save, export, load ---------- */
+const statusEl=document.getElementById("recstat");
+function setStatus(msg,kind){statusEl.textContent=msg;statusEl.dataset.kind=kind||""}
+let dlApi;  // undefined: not resolved yet; null: unavailable; object: capability
+const hostHasClaude=!!(window.claude&&typeof window.claude.use==="function");
+if(hostHasClaude){window.claude.use("downloads").then(d=>{dlApi=d}).catch(()=>{dlApi=null})}
+function saveText(filename,text,mime){
+  if(!hostHasClaude){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:mime}));a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);setStatus(`Saved ${filename}`,"ok");return}
+  if(dlApi){dlApi.save({filename,data:new Blob([text])}).then(()=>setStatus(`Saved ${filename}`,"ok")).catch(err=>{
+      const c=err&&err.code;setStatus(c==="declined"?"Save cancelled.":c==="rate_limited"?"A save prompt is already open.":`Saving failed here (${c||"unavailable"}). Copying to the clipboard instead.`,c==="declined"?"":"warn");
+      if(c&&c!=="declined"&&c!=="rate_limited")copyText(text)});return}
+  copyText(text,true)}
+function copyText(text,explain){
+  const ok=()=>setStatus(explain?"File saving isn't available in this view, so the run was copied to your clipboard. Paste it into a .json file.":"Copied to the clipboard.","ok");
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(ok).catch(()=>setStatus("Couldn't save or copy in this view. Open the sim in its own page to export.","warn"))}
+  else setStatus("Couldn't save or copy in this view. Open the sim in its own page to export.","warn")}
+const fileStem=()=>`troop-politics_seed${seed}_day${Math.floor(tick/TPD)}`;
+document.getElementById("saverun").addEventListener("click",()=>{if(replaying)return;saveText(fileStem()+".json",JSON.stringify(finalizeRecord()),"application/json")});
+document.getElementById("savecsv").addEventListener("click",()=>{if(replaying)return;
+  const q=s=>`"${String(s).replace(/"/g,'""')}"`;const rows=["day,tick,type,summary,data"];
+  for(const e of rec.events){const {t,type,...rest}=e;rows.push([Math.floor(t/TPD),t,type,q(eventText(e)),q(JSON.stringify(rest))].join(","))}
+  saveText(fileStem()+"_events.csv",rows.join("\n"),"text/csv")});
+document.getElementById("loadf").addEventListener("change",e=>{const file=e.target.files&&e.target.files[0];e.target.value="";if(!file||replaying)return;
+  const fr=new FileReader();fr.onerror=()=>setStatus("Couldn't read that file.","warn");
+  fr.onload=()=>{let r;try{r=JSON.parse(fr.result)}catch(_){setStatus("That file isn't valid JSON.","warn");return}
+    if(!validRun(r)){setStatus("That file isn't a Troop Politics run. Load a .json saved with Save run.","warn");return}
+    startReplay(r)};fr.readAsText(file)});
+function startReplay(r){setRunning(false);const loadedVersion=r.version;
+  bandSel.value=String(r.params0.bands);
+  const ctrls=document.querySelectorAll(".sl input,#neww,#restart,#saverun,#savecsv,#stepb,#play,#bands");ctrls.forEach(c=>c.disabled=true);
+  setStatus(`Replaying seed ${r.seed}…`);
+  replay(r,(t,end)=>{setStatus(`Replaying day ${Math.floor(t/TPD)} of ${Math.floor(end/TPD)}…`);uiDirty=true}).then(res=>{
+    ctrls.forEach(c=>c.disabled=false);document.getElementById("seed").textContent="World seed "+seed;
+    const vnote=loadedVersion!==VERSION?` It was recorded in v${loadedVersion}; this is v${VERSION}, so differences are expected.`:"";
+    if(res.match)setStatus(`Replay verified: ${rec.events.length.toLocaleString()} events match the saved run exactly. Paused at day ${Math.floor(tick/TPD)}; press Play to continue the history.`,"ok");
+    else setStatus(`Replay diverged from the saved run${res.divergedAt!=null?` at day ${Math.floor(res.divergedAt/TPD)}`:""}.${vnote} Paused at day ${Math.floor(tick/TPD)}.`,"warn");
+    updateUI()})}
+
+function retheme(){readTokens();renderTerrain();uiDirty=true}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",retheme);
+new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+window.addEventListener("resize",sizeCanvases);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{uiDirty=true});
+
+let lastErr=null;
+function frame(){try{if(running&&!replaying){for(let q=0;q<speed&&!extinct;q++)step();if(extinct)setRunning(false)}
+    draw();if(uiDirty||tick-lastUI>=Math.max(15,speed*2))updateUI()}
+  catch(err){const msg=String(err&&err.message||err);if(msg!==lastErr){lastErr=msg;console.error(err);setRunning(false);setStatus(`Paused on an internal error at day ${Math.floor(tick/TPD)}: ${msg}. Press Play to continue, and please report it.`,"warn")}}
+  requestAnimationFrame(frame)}
+
+readTokens();
+speed=reduce?1:2;setSeg("speed",speed);setSeg("color",colorMode);
+reset(20261010);document.getElementById("seed").textContent="World seed "+seed;
+for(let q=0;q<400;q++)step();   // open on a world that has already met itself
+sizeCanvases();updateUI();requestAnimationFrame(frame);
+})();
+
+}
+
+
+function troopGame(root) {
+  if (!document.getElementById("troop-fonts")) {
+    const l = document.createElement("link");
+    l.id = "troop-fonts"; l.rel = "stylesheet"; l.href = TROOP.fonts;
+    document.head.append(l);
+  }
+  const host = document.createElement("div");
+  root.append(host);
+  const R = host.attachShadow({ mode: "open" });
+  R.innerHTML = `<style>${TROOP.css}</style>${TROOP.html}`;
+  let alive = true;
+  const winListeners = [];
+  // Stand-ins so the simulation's lookups resolve inside its shadow root.
+  const doc = {
+    getElementById: (id) => R.getElementById(id),
+    querySelector: (s) => R.querySelector(s),
+    querySelectorAll: (s) => R.querySelectorAll(s),
+    addEventListener: (t, f, o) => R.addEventListener(t, f, o),
+    createElement: (t) => document.createElement(t),
+    fonts: document.fonts,
+    body: document.body,
+    documentElement: host,
+  };
+  const win = {
+    get devicePixelRatio() { return window.devicePixelRatio; },
+    get claude() { return window.claude; },   // file saving goes through the shelf's `downloads` capability
+    addEventListener: (t, f, o) => { window.addEventListener(t, f, o); winListeners.push([t, f]); },
+  };
+  const raf = (f) => { if (alive) requestAnimationFrame(() => { if (alive) f(); }); };
+  troopRun(doc, win, raf);
+  return { unmount() { alive = false; winListeners.forEach(([t, f]) => window.removeEventListener(t, f)); } };
+}
+
+addEventListener("hashchange", route);
+route();
+</script>
