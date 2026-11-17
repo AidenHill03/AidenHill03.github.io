@@ -865,6 +865,64 @@ footer{margin-top:60px}
       "Schrödinger's resume: read and unread until observed. Observe it.",
       "Aiden measures twice, models once, and documents both."
     ];
+    var MISC=[
+      "Have you eaten today?",
+      "Also try Minecraft!",
+      "Also try Terraria!",
+      "Gone fishing.",
+      "Watched any movies lately?",
+      "My favorite color is blue!",
+      "Probably playing Cyberpunk."
+    ];
+    var HISTORY=[
+      "Oxford was teaching students before the Aztec capital, Tenochtitlan, was founded.",
+      "Cleopatra lived closer in time to the Moon landing than to the building of the Great Pyramid.",
+      "Woolly mammoths still lived on Wrangel Island while the Great Pyramid was being built.",
+      "The Great Pyramid was the tallest human-made structure for about 3,800 years.",
+      "The shortest war on record, Britain vs. Zanzibar in 1896, lasted under an hour.",
+      "Texas was an independent republic from 1836 to 1845.",
+      "The fax machine was patented in 1843, before the American Civil War.",
+      "Nintendo was founded in 1889, to make playing cards.",
+      "Kongō Gumi, a Japanese temple builder founded in 578, ran for over 1,400 years.",
+      "Sherman, Texas is named for Sidney Sherman, a hero of the Texas Revolution.",
+      "One of Galileo's fingers is on display at the Museo Galileo in Florence.",
+      "The Eiffel Tower grows about 15 cm taller on hot summer days. Thermal expansion."
+    ];
+    var JAPANESE=[
+      ["木漏れ日","komorebi","sunlight filtering through the leaves of trees"],
+      ["積ん読","tsundoku","buying books and letting them pile up unread"],
+      ["改善","kaizen","continuous improvement (Six Sigma approves)"],
+      ["生き甲斐","ikigai","a reason for being"],
+      ["一期一会","ichigo ichie","this meeting happens only once, so treasure it"],
+      ["物理","butsuri","physics"],
+      ["量子","ryōshi","quantum"],
+      ["宇宙","uchū","the universe, or outer space"],
+      ["花火","hanabi","fireworks (literally, fire flowers)"],
+      ["猫舌","nekojita","\"cat tongue\": someone who can't handle hot food"],
+      ["金継ぎ","kintsugi","repairing broken pottery with gold"],
+      ["月見","tsukimi","moon viewing"],
+      ["根回し","nemawashi","quietly laying the groundwork before a decision"],
+      ["頑張って","ganbatte","do your best, hang in there"]
+    ].map(function(w){return "Did you know "+w[0]+" ("+w[1]+") means "+w[2]+" in Japanese?";});
+    var QUOTES=[
+      "\"It was the best of times, it was the worst of times...\" (Dickens)",
+      "\"One small step for man, one giant leap for mankind.\" (Neil Armstrong)",
+      "\"Houston, we've had a problem.\" (Jim Lovell, Apollo 13)",
+      "\"If I have seen further it is by standing on the shoulders of Giants.\" (Newton)",
+      "\"Eppur si muove.\" (attributed to Galileo)",
+      "\"Give me a place to stand, and I will move the Earth.\" (attributed to Archimedes)",
+      "\"Eureka!\" (Archimedes, allegedly from the bathtub)",
+      "\"Veni, vidi, vici.\" (Julius Caesar)",
+      "\"Fortune favors the bold.\" (Latin proverb)",
+      "\"I think, therefore I am.\" (Descartes)",
+      "\"Remember the Alamo!\" (Texian battle cry, 1836)",
+      "\"Imagination is more important than knowledge.\" (Einstein)",
+      "\"God does not play dice.\" (Einstein, paraphrased)",
+      "\"Shut up and calculate.\" (N. David Mermin, not Feynman)",
+      "\"All models are wrong, but some are useful.\" (George Box)",
+      "\"Measure what is measurable, and make measurable what is not.\" (attributed to Galileo)",
+      "\"In God we trust; all others must bring data.\" (attributed to W. Edwards Deming)"
+    ];
     function greeting(){
       if(hr<5) return "Up late? So are the neutrinos. They never stop.";
       if(hr<12) return "Good morning. The sunlight you see left the Sun about 8 minutes ago.";
@@ -883,8 +941,8 @@ footer{margin-top:60px}
     }
     var queue=[], hireI=0, hintI=0;
     function refill(){
-      var f=shuffle(FACTS.slice()), h=shuffle(HINTS.slice());
-      for(var i=0;i<f.length;i++){ queue.push(f[i]); if(i%2===1) queue.push(h[hintI++%h.length]); if(i%4===3) queue.push(HIRE[hireI++%HIRE.length]); }
+      var f=shuffle(FACTS.concat(HISTORY,JAPANESE,QUOTES,MISC)), h=shuffle(HINTS.slice());
+      for(var i=0;i<f.length;i++){ queue.push(f[i]); if(i%4===3) queue.push(h[hintI++%h.length]); if(i%6===5) queue.push(HIRE[hireI++%HIRE.length]); }
       lead.forEach(function(m,i){ queue.splice(6+i*7,0,m); });
     }
     queue=lead.concat([greeting()]); refill();
