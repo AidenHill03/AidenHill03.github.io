@@ -511,7 +511,7 @@ footer{margin-top:60px}
         <path d="M7 44 L33 58 M33 44 L7 58" stroke="#050512" stroke-width="2"/>
       </g>
       <!-- windmill -->
-      <g fill="#050512" transform="translate(620 26)">
+      <g id="windmill" fill="#050512" transform="translate(620 26)">
         <path d="M16 18 L20 18 L24 64 L12 64 Z"/>
         <g id="blades"><rect x="17" y="0" width="2" height="32"/><rect x="2" y="15" width="32" height="2"/><rect x="17" y="0" width="2" height="32" transform="rotate(45 18 16)"/><rect x="2" y="15" width="32" height="2" transform="rotate(45 18 16)"/></g>
       </g>
@@ -1409,6 +1409,84 @@ footer{margin-top:60px}
     var n=Date.now(); ttaps=ttaps.filter(function(x){return n-x<900}); ttaps.push(n);
     if(ttaps.length>=3){ ttaps=[]; wormhole(); }
   });
+
+  /* Shoryuken: → ↓ → B (or tap the windmill). The horizon walker throws a dragon punch. */
+  var shoBusy=false;
+  function shoryuken(){
+    if(shoBusy) return; shoBusy=true;
+    var hz=document.querySelector(".horizon"), r=hz.getBoundingClientRect();
+    if(reduce){ toast("Shoryuken!"); shoBusy=false; return; }
+    var needScroll = r.top>window.innerHeight-60 || r.bottom<60;
+    if(needScroll) window.scrollTo({top:document.documentElement.scrollHeight,behavior:"smooth"});
+    setTimeout(go, needScroll?950:0);
+    function go(){
+      var r=hz.getBoundingClientRect(), wr=walker.getBoundingClientRect(), walking=walker.classList.contains("go")&&wr.right>0&&wr.left<window.innerWidth;
+      var x0= walking ? wr.left+wr.width/2 : r.left+r.width*0.42, gy=r.bottom-38, S=2.1, dir=1;
+      if(walking) walker.style.visibility="hidden";
+      var cv=document.createElement("canvas"); cv.setAttribute("aria-hidden","true");
+      cv.style.cssText="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:31";
+      document.body.appendChild(cv);
+      var d=Math.min(window.devicePixelRatio||1,2), W=window.innerWidth, H=window.innerHeight, c=cv.getContext("2d");
+      cv.width=W*d; cv.height=H*d; c.setTransform(d,0,0,d,0,0);
+      var J=["head","sh","hip","kL","fL","kR","fR","eL","hL","eR","hR"];
+      var P={
+        stand:[[0,-27],[0,-21],[0,-12],[-2,-6],[-3,0],[2,-6],[3,0],[-3,-16],[-3,-11],[3,-16],[4,-12]],
+        crouch:[[1.5,-20],[1,-15],[0,-8],[-5,-5],[-4,0],[5,-5],[5,0],[-2,-11],[1,-13],[4,-11],[2,-15]],
+        rise:[[1.5,-28],[1,-22],[0,-12],[-1,-7],[-3,-1],[4,-15],[3,-9],[-4,-17],[-6,-13],[3,-29],[4,-36]],
+        fall:[[0,-27],[0,-21],[0,-12],[-3,-8],[-2,-3],[3,-9],[4,-4],[-4,-17],[-6,-14],[3,-26],[3,-31]]
+      };
+      function mix(a,b,k){ return P[a].map(function(p,i){return [p[0]+(P[b][i][0]-p[0])*k, p[1]+(P[b][i][1]-p[1])*k];}); }
+      function cl(x){return x<0?0:x>1?1:x;}
+      function eo(x){x=cl(x);return 1-(1-x)*(1-x);}
+      function ei(x){x=cl(x);return x*x;}
+      var trail=[], dust=[], t0=performance.now(), landed=false;
+      function frame(now){
+        var t=(now-t0)/1000, pose, yo=0, xo=0, lean=0;
+        if(t<0.15) pose=mix("stand","crouch",t/0.15);
+        else if(t<0.6){ var k=(t-0.15)/0.45; pose=mix("crouch","rise",cl(k*3)); yo=-95*eo(k); xo=24*eo(k); lean=0.18*cl(k*3); }
+        else if(t<1.05){ var k2=(t-0.6)/0.45; pose=mix("rise","fall",cl(k2*3)); yo=-95*(1-ei(k2)); xo=24+10*k2; lean=0.18*(1-k2); }
+        else if(t<1.25){ pose=mix("fall","crouch",(t-1.05)/0.2); xo=34; if(!landed){landed=true; for(var i=0;i<14;i++) dust.push({x:x0+34*dir,y:gy,vx:(Math.random()-.5)*120,vy:-Math.random()*60,l:0});} }
+        else { pose=mix("crouch","stand",(t-1.25)/0.25); xo=34; }
+        var bx=x0+xo*dir, by=gy+yo;
+        function pt(i){ var p=pose[i], x=p[0]*dir, y=p[1], ca=Math.cos(lean*dir), sa=Math.sin(lean*dir), hy=pose[2][1];
+          var rx=x*ca-(y-hy)*sa, ry=x*sa+(y-hy)*ca+hy; return [bx+rx*S, by+ry*S]; }
+        c.clearRect(0,0,W,H);
+        // fiery trail from the rising fist
+        if(t>0.18&&t<0.75) trail.push(pt(10));
+        for(var i=1;i<trail.length;i++){ var a=(i/trail.length)*Math.max(0,1-(t-0.75)/0.5);
+          c.strokeStyle="rgba(255,170,60,"+(0.55*a).toFixed(3)+")"; c.lineWidth=10*a+2; c.lineCap="round";
+          c.beginPath(); c.moveTo(trail[i-1][0],trail[i-1][1]); c.lineTo(trail[i][0],trail[i][1]); c.stroke();
+          c.strokeStyle="rgba(255,240,200,"+(0.8*a).toFixed(3)+")"; c.lineWidth=2.5*a+0.5; c.stroke(); }
+        // figure
+        c.strokeStyle="#050512"; c.fillStyle="#050512"; c.lineCap="round"; c.lineJoin="round";
+        function seg(ids,w){ c.lineWidth=w; c.beginPath(); ids.forEach(function(id,k){var p=pt(J.indexOf(id)); if(k) c.lineTo(p[0],p[1]); else c.moveTo(p[0],p[1]);}); c.stroke(); }
+        function body(pad){
+          seg(["hip","kL","fL"],2.6*S+pad); seg(["hip","kR","fR"],2.6*S+pad); seg(["sh","hip"],4.2*S+pad); seg(["sh","eL","hL"],2.2*S+pad); seg(["sh","eR","hR"],2.2*S+pad);
+          var hd=pt(0); c.beginPath(); c.arc(hd[0],hd[1],2.8*S+pad/2,0,6.283); c.fill(); }
+        c.strokeStyle="rgba(150,165,255,.45)"; c.fillStyle="rgba(150,165,255,.45)"; body(2.4);
+        c.strokeStyle="#050512"; c.fillStyle="#050512"; body(0);
+        if(t>0.25&&t<0.7){ var hf=pt(10), g=c.createRadialGradient(hf[0],hf[1],0,hf[0],hf[1],14); g.addColorStop(0,"rgba(255,230,160,.9)"); g.addColorStop(1,"rgba(255,150,40,0)"); c.fillStyle=g; c.beginPath(); c.arc(hf[0],hf[1],14,0,6.283); c.fill(); }
+        // dust
+        dust.forEach(function(p){ p.l+=1/60; p.x+=p.vx/60; p.y+=p.vy/60; p.vy+=200/60; var a=Math.max(0,1-p.l/0.6); c.fillStyle="rgba(170,160,210,"+(0.6*a)+")"; c.beginPath(); c.arc(p.x,Math.min(p.y,gy),1.6,0,6.283); c.fill(); });
+        // the call
+        if(t>0.2&&t<1.9){ var tt=t-0.2, sc=Math.min(1,0.6+tt*3), al=t>1.5?Math.max(0,1-(t-1.5)/0.4):Math.min(1,tt*5);
+          c.save(); c.translate(x0+20*dir, gy-185); c.scale(sc,sc); c.textAlign="center";
+          c.font="italic 700 30px 'Cormorant Garamond',Georgia,serif"; c.lineWidth=5; c.strokeStyle="rgba(5,5,18,"+al+")"; c.strokeText("SHORYUKEN!",0,0);
+          c.fillStyle="rgba(242,198,109,"+al+")"; c.fillText("SHORYUKEN!",0,0); c.restore(); }
+        if(t<2) requestAnimationFrame(frame);
+        else { cv.remove(); walker.style.visibility=""; shoBusy=false; }
+      }
+      requestAnimationFrame(frame);
+    }
+  }
+  var SHO=["ArrowRight","ArrowDown","ArrowRight","b"], shoKeys=[];
+  window.addEventListener("keydown",function(e){
+    var k=e.key.length===1?e.key.toLowerCase():e.key, n=performance.now();
+    shoKeys.push({k:k,t:n}); shoKeys=shoKeys.filter(function(x){return n-x.t<1400;}).slice(-4);
+    if(shoKeys.length===4 && shoKeys.every(function(x,i){return x.k===SHO[i];})){ shoKeys=[]; shoryuken(); }
+  });
+  var mill=document.getElementById("windmill");
+  if(mill) mill.addEventListener("click",shoryuken);
   try{ console.log("%cHi, you opened the console. Good instinct.\n%cThe banner is a 1-D cellular automaton; the rule number is the lookup table in binary.",
     "color:#f2c66d;font:600 14px sans-serif","color:#4fd8ff"); }catch(e){}
 })();
