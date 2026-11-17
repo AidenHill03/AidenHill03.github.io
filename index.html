@@ -66,6 +66,10 @@ h1{font:700 clamp(46px,8vw,84px)/1 var(--serif);margin:10px 0 8px;letter-spacing
 .ticker #tickerText{flex:0 1 auto}
 .pname{font-style:italic;color:var(--ink);cursor:pointer;transition:color .2s}
 .pname:hover{color:var(--gold)}
+.qbox{font:500 12px var(--mono);color:var(--gold);background:rgba(242,198,109,.08);border:1px solid rgba(242,198,109,.5);border-radius:8px 0 8px 0;padding:2px 9px;margin-left:6px;cursor:pointer}
+.qbox:hover{background:rgba(242,198,109,.18)}
+html.radium .g,html.radium .sec-head .num,html.radium .when,html.radium .rule-tag,html.radium .path.hire h3,html.radium .eyebrow{transition:color 4s cubic-bezier(.1,.6,.3,1),text-shadow 4s cubic-bezier(.1,.6,.3,1)}
+html.radium-on .g,html.radium-on .sec-head .num,html.radium-on .when,html.radium-on .rule-tag,html.radium-on .path.hire h3,html.radium-on .eyebrow{color:#9dffa8;text-shadow:0 0 14px rgba(110,255,140,.85);transition:color .5s,text-shadow .5s}
 .ticker .cursor{flex:none;align-self:flex-end;width:7px;height:1.1em;margin-bottom:.25em;background:var(--neon);opacity:.8;animation:blink 1.05s steps(1) infinite}
 @keyframes blink{50%{opacity:0}}
 @media (max-width:820px){.nameline{flex-direction:column;align-items:flex-start;gap:6px}.ticker{max-width:none;min-height:3.2em;font-size:13.5px;margin-bottom:8px}}
@@ -608,8 +612,17 @@ footer{margin-top:60px}
     streaks.push({x:fromLeft?Math.random()*W*.5:W*.5+Math.random()*W*.5,y:Math.random()*H*.35,
       vx:(fromLeft?1:-1)*(7+Math.random()*5),vy:2.5+Math.random()*2,life:0,max:55+Math.random()*30,c:color||"242,198,109"});
   }
+  var boltzUntil=0;
+  window.__boltz=function(){ boltzUntil=performance.now()+3500;
+    stars.forEach(function(s){ s.vx=(Math.random()-.5)*5; s.vy=(Math.random()-.5)*5; });
+    CONST.forEach(function(c){ c.pts.forEach(function(p){ p[2]=(Math.random()-.5)*0.006; p[3]=(Math.random()-.5)*0.006; }); });
+    if(reduce) frame(performance.now()); };
   function frame(t){
     ctx.clearRect(0,0,W,H);
+    if(performance.now()<boltzUntil){
+      stars.forEach(function(s){ if(s.vx===undefined) return; s.vx+=(Math.random()-.5)*0.8; s.vy+=(Math.random()-.5)*0.8; s.vx*=0.97; s.vy*=0.97; s.x=(s.x+s.vx+W)%W; s.y=(s.y+s.vy+H)%H; });
+      CONST.forEach(function(c){ c.pts.forEach(function(p){ if(p[2]===undefined) return; p[2]+=(Math.random()-.5)*0.0012; p[3]+=(Math.random()-.5)*0.0012; p[2]*=0.97; p[3]*=0.97; p[0]+=p[2]; p[1]+=p[3]; }); });
+    }
     // stars
     for(var i=0;i<stars.length;i++){var s=stars[i];
       var a=reduce?.7:.45+.45*Math.sin(t/1000*s.s+s.p);
@@ -864,7 +877,10 @@ footer{margin-top:60px}
       "Noether: every continuous symmetry, a conservation law. Physics runs on it.",
       "Gell-Mann named quarks after a line in Finnegans Wake.",
       "Witten is the only physicist to have won the Fields Medal (1990).",
-      "Henry Fox Talbot found the Talbot effect and also pioneered photography."
+      "Henry Fox Talbot found the Talbot effect and also pioneered photography.",
+      "Tesla's AC induction motor (1888) still runs most of the world's machinery.",
+      "Schrödinger meant the cat as a reductio, not an endorsement.",
+      "Niels Bohr played goalkeeper; his brother Harald played for Denmark at the 1908 Olympics."
     ];
     var HINTS=[
       "Try typing your favorite physicist.",
@@ -968,7 +984,7 @@ footer{margin-top:60px}
     queue=lead.concat([greeting()]); refill();
 
     var typing=null, timer=null;
-    var NAMES=/\b(Newton|Feynman|Galileo|Heisenberg|Dirac|Maxwell|Einstein|Hawking)\b/g;
+    var NAMES=/\b(Newton|Feynman|Galileo|Heisenberg|Dirac|Maxwell|Einstein|Hawking|Tesla|Schrödinger|Curie|Boltzmann|Noether|Bohr)\b/g;
     function segs(msg){ var out=[], last=0, m; NAMES.lastIndex=0;
       while((m=NAMES.exec(msg))){ if(m.index>last) out.push({t:msg.slice(last,m.index)}); out.push({t:m[0],fx:m[0].toLowerCase()}); last=m.index+m[0].length; }
       if(last<msg.length) out.push({t:msg.slice(last)}); return out; }
@@ -1109,9 +1125,89 @@ footer{margin-top:60px}
         setTimeout(function(){ r.style.filter=""; setTimeout(function(){ r.style.transition=""; busy.dirac=false; },600); },2800);
         show("Antimatter version of this page. Dirac predicted it in 1928. Don't let it touch the regular one.",8000);
       },
+      tesla:function(){
+        if(busy.tesla) return; busy.tesla=true;
+        var o=overlay(29), c=o.c, W=o.W, H=o.H, t0=performance.now();
+        var cand=[].slice.call(document.querySelectorAll(".btn,.path li a,.chip,nav.top a")).map(function(el){var r=el.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,el:el};})
+          .filter(function(p){return p.x>0&&p.x<W&&p.y>60&&p.y<H;});
+        var A,B;
+        for(var tries=0;tries<40&&cand.length>1;tries++){ var a=cand[Math.floor(Math.random()*cand.length)], b=cand[Math.floor(Math.random()*cand.length)], d=Math.hypot(a.x-b.x,a.y-b.y); if(d>140&&d<720){A=a;B=b;break;} }
+        if(!A){ A={x:W*0.3,y:H*0.45}; B={x:W*0.7,y:H*0.55}; }
+        function bolt(x1,y1,x2,y2,disp,out){ if(disp<3){out.push([x2,y2]);return;} var mx=(x1+x2)/2+(Math.random()-.5)*disp, my=(y1+y2)/2+(Math.random()-.5)*disp; bolt(x1,y1,mx,my,disp/2,out); bolt(mx,my,x2,y2,disp/2,out); }
+        function draw(pts,w,col){ c.strokeStyle=col; c.lineWidth=w; c.beginPath(); c.moveTo(A.x,A.y); pts.forEach(function(p){c.lineTo(p[0],p[1]);}); c.stroke(); }
+        var lastGen=0, pts=[], branch=[];
+        (function frame(now){
+          var t=(now-t0)/1000; 
+          if(now-lastGen>55){ lastGen=now; pts=[]; bolt(A.x,A.y,B.x,B.y,Math.hypot(B.x-A.x,B.y-A.y)*0.35,pts);
+            branch=[]; var k=pts[Math.floor(pts.length*(0.3+Math.random()*0.4))]; if(k){ bolt(k[0],k[1],k[0]+(Math.random()-.5)*160,k[1]+(Math.random()-.5)*160,50,branch); branch.unshift(k);} }
+          c.clearRect(0,0,W,H); c.lineJoin="round"; c.lineCap="round";
+          var al=t>1.7?Math.max(0,1-(t-1.7)/0.3):1;
+          if(Math.random()<0.85){
+            draw(pts,7,"rgba(120,200,255,"+(0.18*al)+")"); draw(pts,2.2,"rgba(200,235,255,"+(0.9*al)+")"); draw(pts,0.9,"rgba(255,255,255,"+al+")");
+            if(branch.length>1){ c.strokeStyle="rgba(160,215,255,"+(0.6*al)+")"; c.lineWidth=1; c.beginPath(); c.moveTo(branch[0][0],branch[0][1]); branch.forEach(function(p){c.lineTo(p[0],p[1]);}); c.stroke(); }
+            [A,B].forEach(function(p){ var g=c.createRadialGradient(p.x,p.y,0,p.x,p.y,26); g.addColorStop(0,"rgba(220,240,255,"+(0.8*al)+")"); g.addColorStop(1,"rgba(120,200,255,0)"); c.fillStyle=g; c.beginPath(); c.arc(p.x,p.y,26,0,6.283); c.fill(); });
+          }
+          if(t<2) requestAnimationFrame(frame); else { o.cv.remove(); busy.tesla=false; }
+        })(t0);
+        show("Zap. Tesla would have wanted it bigger.",7000);
+      },
+      "schrödinger":function(){
+        clearTimeout(timer); clearInterval(typing);
+        out.innerHTML='A box. Inside, a cat: alive and dead until someone looks. <button class="qbox" type="button">open the box</button>';
+        var bt=out.querySelector(".qbox");
+        bt.addEventListener("click",function(e){ e.stopPropagation();
+          show(Math.random()<0.5 ? "Alive! The cat is fine, and annoyed at you. (In this branch.)" : "The cat is... not alive. Decoherence is cruel. (In this branch.)",8000); });
+        timer=setTimeout(next,14000);
+      },
+      curie:function(){
+        if(busy.curie) return; busy.curie=true;
+        var r=document.documentElement; r.classList.add("radium","radium-on");
+        setTimeout(function(){ r.classList.remove("radium-on"); setTimeout(function(){ r.classList.remove("radium"); busy.curie=false; },4200); },900);
+        show("Radium paint glowed green thanks to zinc sulfide; radium itself glows a faint blue. Half-life here: seconds. In reality: 1,600 years.",9000);
+      },
+      boltzmann:function(){
+        if(window.__boltz) window.__boltz();
+        show("dS ≥ 0. The stars won't un-scramble. Boltzmann tried to warn us.",8000);
+      },
+      noether:function(){
+        if(busy.noether) return; busy.noether=true;
+        var main=document.querySelector("main");
+        main.style.transformOrigin="50% "+(window.scrollY+window.innerHeight/2)+"px";
+        main.style.transition="transform 2.2s cubic-bezier(.65,0,.35,1)";
+        requestAnimationFrame(function(){ main.style.transform="rotate(360deg)"; });
+        setTimeout(function(){ main.style.transition="none"; main.style.transform=""; main.style.transformOrigin=""; void main.offsetWidth; main.style.transition=""; busy.noether=false; },2350);
+        show("Rotated by 2π. Nothing changed. Noether says that symmetry conserves angular momentum.",9000);
+      },
+      bohr:function(){
+        if(busy.bohr) return; busy.bohr=true;
+        var o=overlay(29), c=o.c, W=o.W, H=o.H, t0=performance.now(), last=t0;
+        var R=[24,46,70], el=[{n:0,a:0},{n:1,a:2},{n:1,a:5},{n:2,a:1}], photons=[], nextJump=0.8;
+        var COL=["242,198,109","190,120,255","79,216,255"];
+        (function frame(now){
+          var t=(now-t0)/1000, dt=Math.min(0.05,(now-last)/1000); last=now; c.clearRect(0,0,W,H);
+          var al=t>6.4?Math.max(0,1-(t-6.4)/0.6):Math.min(1,t/0.4), cx=ptr.x, cy=ptr.y;
+          R.forEach(function(r){ c.strokeStyle="rgba(170,180,240,"+(0.28*al)+")"; c.lineWidth=1; c.beginPath(); c.arc(cx,cy,r,0,6.283); c.stroke(); });
+          c.fillStyle="rgba(242,198,109,"+al+")"; c.beginPath(); c.arc(cx,cy,3.2,0,6.283); c.fill();
+          if(t>nextJump && t<6){ nextJump=t+0.7+Math.random()*0.9;
+            var e=el[Math.floor(Math.random()*el.length)], to=Math.floor(Math.random()*3);
+            if(to!==e.n){ if(to<e.n){ var x=cx+Math.cos(e.a)*R[e.n], y=cy+Math.sin(e.a)*R[e.n]; photons.push({x:x,y:y,h:e.a,t:0,col:COL[(e.n+to)%3]}); } e.n=to; } }
+          el.forEach(function(e){ e.a+=dt*3.2/Math.pow(e.n+1,1.5);
+            var x=cx+Math.cos(e.a)*R[e.n], y=cy+Math.sin(e.a)*R[e.n];
+            c.fillStyle="rgba(79,216,255,"+al+")"; c.beginPath(); c.arc(x,y,2.6,0,6.283); c.fill(); });
+          photons=photons.filter(function(p){ p.t+=dt; return p.t<1.2; });
+          photons.forEach(function(p){ var d=p.t*220, fa=(1-p.t/1.2)*al; c.strokeStyle="rgba("+p.col+","+fa+")"; c.lineWidth=1.4; c.beginPath();
+            for(var s=0;s<=34;s+=2){ var w=Math.sin(s*0.9)*3, rr=d+s; var x=p.x+Math.cos(p.h)*rr-Math.sin(p.h)*w, y=p.y+Math.sin(p.h)*rr+Math.cos(p.h)*w; if(s) c.lineTo(x,y); else c.moveTo(x,y);} c.stroke(); });
+          if(t<7) requestAnimationFrame(frame); else { o.cv.remove(); busy.bohr=false; }
+        })(t0);
+        show("Electrons in fixed shells, jumping and emitting photons. Bohr's 1913 atom: wrong in detail, right in spirit.",9000);
+      },
       einstein:function(){ wormhole(); },
       hawking:function(){ blackHole(); }
     };
+    FX.schrodinger=FX["schrödinger"];
+    var ptr={x:window.innerWidth/2,y:window.innerHeight/2};
+    window.addEventListener("pointermove",function(e){ptr.x=e.clientX;ptr.y=e.clientY;},{passive:true});
+    window.addEventListener("pointerdown",function(e){ptr.x=e.clientX;ptr.y=e.clientY;},{passive:true});
     out.addEventListener("click",function(e){
       var n=e.target.closest&&e.target.closest(".pname"); if(!n) return;
       e.stopPropagation(); var f=FX[n.getAttribute("data-fx")]; if(f) f();
