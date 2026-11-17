@@ -58,6 +58,15 @@ nav.top a.cta:hover{text-decoration:none;filter:brightness(1.08)}
 .hero{padding:34px 0 18px}
 .eyebrow{font:500 12px var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--neon)}
 h1{font:700 clamp(46px,8vw,84px)/1 var(--serif);margin:10px 0 8px;letter-spacing:.01em}
+.nameline{display:flex;align-items:center;gap:34px}
+.nameline h1{flex:none}
+.ticker{flex:1;max-width:560px;min-height:3.4em;display:flex;align-items:center;gap:10px;cursor:pointer;
+  font:400 14.5px/1.55 var(--mono);color:var(--ink-dim);padding:6px 0 6px 16px;border-left:1px solid rgba(242,198,109,.45)}
+.ticker .caret{color:var(--gold);flex:none;align-self:flex-start}
+.ticker #tickerText{flex:0 1 auto}
+.ticker .cursor{flex:none;align-self:flex-end;width:7px;height:1.1em;margin-bottom:.25em;background:var(--neon);opacity:.8;animation:blink 1.05s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+@media (max-width:820px){.nameline{flex-direction:column;align-items:flex-start;gap:6px}.ticker{max-width:none;min-height:3.2em;font-size:13.5px;margin-bottom:8px}}
 h1 .g{color:var(--gold)}
 .lede{font-size:clamp(18px,2.4vw,22px);color:var(--ink);max-width:720px;margin:0 0 6px}
 .meta{color:var(--ink-dim);margin:0 0 18px}
@@ -208,6 +217,7 @@ footer{margin-top:60px}
   html{scroll-behavior:auto}
   .reveal{opacity:1;transform:none;transition:none}
   .walker{display:none}
+  .ticker .cursor{animation:none}
 }
 </style>
 </head>
@@ -239,7 +249,10 @@ footer{margin-top:60px}
     <!-- HERO -->
     <div class="hero">
       <div class="eyebrow">Physicist · Sherman, Texas</div>
-      <h1 >Aiden <span class="g">Hill</span></h1>
+      <div class="nameline">
+        <h1>Aiden <span class="g">Hill</span></h1>
+        <div class="ticker" id="ticker" title="Click for the next message" aria-live="polite"><span class="caret">›</span><span id="tickerText"></span><span class="cursor"></span></div>
+      </div>
       <p class="lede">I build things to understand them: numerical models, lab measurements, and software that puts the math to work.</p>
       <p class="meta">B.S. Physics, UT Dallas&nbsp;&nbsp;·&nbsp;&nbsp;Co-author, arXiv:2605.09903&nbsp;&nbsp;·&nbsp;&nbsp;Lean Six Sigma White Belt</p>
       <div class="status"><span class="dot"></span>Open to engineering &amp; technical roles in Texoma / North Texas — especially semiconductor manufacturing, process, quality and reliability</div>
@@ -778,6 +791,167 @@ footer{margin-top:60px}
     pos = (k===code[pos]) ? pos+1 : (k===code[0]?1:0);
     if(pos===code.length){ pos=0; for(var i=0;i<20;i++) setTimeout(spawnStreak,i*180); toast("Make a wish."); }
   });
+
+
+  /* ---------- Message ticker (beside the name) ---------- */
+  (function(){
+    var box=document.getElementById("ticker"), out=document.getElementById("tickerText"); if(!box) return;
+    var now=new Date(), M=now.getMonth()+1, D=now.getDate(), Y=now.getFullYear(), hr=now.getHours();
+    // [month, day, name, birth year]
+    var BIRTHDAYS=[
+      [1,1,"Satyendra Nath Bose",1894],[1,8,"Stephen Hawking",1942],[1,20,"André-Marie Ampère",1775],[1,23,"Hideki Yukawa",1907],[1,25,"Joseph-Louis Lagrange",1736],
+      [2,15,"Galileo Galilei",1564],[2,18,"Alessandro Volta",1745],[2,20,"Ludwig Boltzmann",1844],[2,22,"Heinrich Hertz",1857],
+      [3,14,"Albert Einstein",1879],[3,21,"Joseph Fourier",1768],[3,23,"Emmy Noether",1882],[3,23,"Pierre-Simon Laplace",1749],[3,31,"Sin-Itiro Tomonaga",1906],
+      [4,14,"Christiaan Huygens",1629],[4,15,"Leonhard Euler",1707],[4,22,"J. Robert Oppenheimer",1904],[4,23,"Max Planck",1858],[4,25,"Wolfgang Pauli",1900],[4,30,"Carl Friedrich Gauss",1777],
+      [5,3,"Steven Weinberg",1933],[5,11,"Richard Feynman",1918],[5,15,"Frank Wilczek",1951],[5,23,"John Bardeen",1908],[5,29,"Peter Higgs",1929],[5,31,"Chien-Shiung Wu",1912],
+      [6,13,"James Clerk Maxwell",1831],[6,26,"Lord Kelvin",1824],[6,28,"John Stewart Bell",1928],
+      [7,2,"Hans Bethe",1906],[7,5,"Gerard 't Hooft",1946],[7,9,"John Archibald Wheeler",1911],[7,10,"Nikola Tesla",1856],[7,18,"Hendrik Lorentz",1853],[7,23,"Vera Rubin",1928],
+      [8,4,"William Rowan Hamilton",1805],[8,8,"Paul Dirac",1902],[8,8,"Roger Penrose",1931],[8,12,"Erwin Schrödinger",1887],[8,15,"Louis de Broglie",1892],[8,26,"Edward Witten",1951],[8,30,"Ernest Rutherford",1871],
+      [9,10,"Arthur Compton",1892],[9,15,"Murray Gell-Mann",1929],[9,22,"Michael Faraday",1791],[9,29,"Enrico Fermi",1901],
+      [10,7,"Niels Bohr",1885],[10,19,"Subrahmanyan Chandrasekhar",1910],
+      [11,7,"Marie Curie",1867],[11,7,"Lise Meitner",1878],[11,7,"C. V. Raman",1888],[11,17,"Eugene Wigner",1902],[11,20,"Edwin Hubble",1889],
+      [12,5,"Werner Heisenberg",1901],[12,11,"Max Born",1882],[12,15,"Freeman Dyson",1923],[12,25,"Isaac Newton",1642],[12,27,"Johannes Kepler",1571]
+    ];
+    function thanksgiving(y){var d=new Date(y,10,1), first=(4-d.getDay()+7)%7+1; return first+21;}
+    var HOLIDAYS={
+      "1-1":"Happy New Year. Same laws of physics, new calendar.",
+      "2-14":"Happy Valentine's Day. Some pairs are simply entangled.",
+      "3-2":"Happy Texas Independence Day.",
+      "3-14":"Happy Pi Day, and happy birthday, Einstein.",
+      "4-22":"Happy Earth Day. It's the only planet known to have physicists.",
+      "5-4":"May the fourth be with you. (Forces come in four kinds, as far as we know.)",
+      "6-28":"Happy Tau Day: τ = 2π, one full turn.",
+      "7-4":"Happy Fourth of July. Also: the Higgs boson's discovery was announced on this day in 2012.",
+      "7-20":"Apollo 11 landed on the Moon on this day in 1969.",
+      "9-14":"On this day in 2015, LIGO first heard two black holes merge (GW150914).",
+      "10-4":"Sputnik launched on this day in 1957.",
+      "10-23":"Happy Mole Day: 6.022 × 10²³, celebrated from 6:02 to 6:02.",
+      "10-31":"Happy Halloween. Spooky action at a distance is real, but it can't send messages.",
+      "12-25":"Merry Christmas, and happy birthday, Isaac Newton (b. 1642, Old Style)."
+    };
+    HOLIDAYS["11-"+thanksgiving(Y)]="Happy Thanksgiving. Grateful for conservation laws.";
+    var FACTS=[
+      "Light from the Sun is about 8 minutes 20 seconds old when it reaches you.",
+      "The cosmic microwave background sits at 2.725 K.",
+      "Roughly 60 billion solar neutrinos pass through each square centimeter of you every second.",
+      "Semiconductor-grade silicon is about 99.9999999% pure: nine nines.",
+      "Since 2019, the kilogram has been defined by fixing Planck's constant.",
+      "GPS satellite clocks gain about 38 microseconds a day to relativity, and the system corrects for it.",
+      "Cosmic-ray muons reach the ground only because of time dilation.",
+      "QED predicts the electron's magnetic moment to better than one part in a billion.",
+      "Every elementary cellular automaton fits in one byte: rule 110 is 01101110.",
+      "Rule 110 is Turing complete (Cook, 2004).",
+      "There are 256 elementary cellular automata, but only 88 are essentially different.",
+      "A wavefunction on a ring reassembles perfectly at the Talbot time.",
+      "Aharonov–Bohm: a charged particle can feel a potential where the magnetic field is zero.",
+      "Noether's theorem: every continuous symmetry comes with a conserved quantity.",
+      "The Sun moves about 370 km/s relative to the cosmic microwave background.",
+      "Lakes of Wada: three regions can share every single boundary point.",
+      "Newton's method on z³ − 1 splits the plane into three basins with a fractal boundary.",
+      "A teaspoon of neutron star would weigh billions of tons."
+    ];
+    var HINTS=[
+      "Try typing your favorite physicist.",
+      "Try typing your favorite physicist. Some of them do more than talk.",
+      "Click the banner up top. It's not just decoration.",
+      "The skyline at the bottom rewards persistence.",
+      "Old video game codes still work on some websites.",
+      "Open your browser's console sometime."
+    ];
+    var HIRE=[
+      "You should hire Aiden.",
+      "Hiring for process, quality or reliability in Texoma? Aiden's resume is one click away.",
+      "Assume a spherical, frictionless new hire. Then meet Aiden.",
+      "Schrödinger's resume: read and unread until observed. Observe it.",
+      "Aiden measures twice, models once, and documents both."
+    ];
+    function greeting(){
+      if(hr<5) return "Up late? So are the neutrinos. They never stop.";
+      if(hr<12) return "Good morning. The sunlight you see left the Sun about 8 minutes ago.";
+      if(hr<18) return "Good afternoon from Sherman, Texas.";
+      return "Good evening. The night sky up there is (mostly) real.";
+    }
+    function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+    var lead=[];
+    BIRTHDAYS.forEach(function(b){ if(b[0]===M&&b[1]===D) lead.push("Born on this day in "+b[3]+": "+b[2]+". Happy birthday."); });
+    if(HOLIDAYS[M+"-"+D]) lead.push(HOLIDAYS[M+"-"+D]);
+    if(!lead.length){
+      var best=null;
+      BIRTHDAYS.forEach(function(b){ var dt=new Date(Y,b[0]-1,b[1]); if(dt<new Date(Y,M-1,D)) dt=new Date(Y+1,b[0]-1,b[1]);
+        var days=Math.round((dt-new Date(Y,M-1,D))/864e5); if(days>0&&days<=7&&(!best||days<best.d)) best={d:days,b:b}; });
+      if(best) lead.push("Coming up: "+best.b[2]+"'s birthday "+(best.d===1?"tomorrow":"in "+best.d+" days")+".");
+    }
+    var queue=[], hireI=0, hintI=0;
+    function refill(){
+      var f=shuffle(FACTS.slice()), h=shuffle(HINTS.slice());
+      for(var i=0;i<f.length;i++){ queue.push(f[i]); if(i%2===1) queue.push(h[hintI++%h.length]); if(i%4===3) queue.push(HIRE[hireI++%HIRE.length]); }
+      lead.forEach(function(m,i){ queue.splice(6+i*7,0,m); });
+    }
+    queue=lead.concat([greeting()]); refill();
+
+    var typing=null, timer=null;
+    function show(msg,hold){
+      clearTimeout(timer); clearInterval(typing);
+      if(reduce){ out.textContent=msg; timer=setTimeout(next,hold||7000); return; }
+      var i=0; out.textContent="";
+      typing=setInterval(function(){ i+=1; out.textContent=msg.slice(0,i); if(i>=msg.length){ clearInterval(typing); timer=setTimeout(next,hold||Math.max(5200,msg.length*75)); } },26);
+    }
+    function next(){ if(!queue.length) refill(); show(queue.shift()); }
+    box.addEventListener("click",next);
+    window.__tickerSay=function(m){ show(m,9000); };
+    next();
+
+    // Typing a physicist's name makes the ticker answer.
+    var PHYS={
+      newton:"Newton also ran the Royal Mint, where he personally prosecuted counterfeiters.",
+      feynman:"Feynman cracked safes at Los Alamos for fun.",
+      dirac:"Dirac's equation predicted antimatter in 1928; the positron turned up in 1932.",
+      curie:"Marie Curie is the only person with Nobel Prizes in two different sciences.",
+      noether:"Noether: symmetry ⇔ conservation law. Physics has been built on it ever since.",
+      maxwell:"Maxwell unified electricity, magnetism and light, and made the first color photograph (1861).",
+      bohr:"Niels Bohr played goalkeeper; his brother Harald played for Denmark at the 1908 Olympics.",
+      heisenberg:"Heisenberg worked out matrix mechanics on Heligoland, escaping hay fever.",
+      schrodinger:"Schrödinger meant the cat as a reductio, not an endorsement.",
+      "schrödinger":"Schrödinger meant the cat as a reductio, not an endorsement.",
+      pauli:"The 'Pauli effect': lab equipment supposedly broke when Pauli walked in.",
+      fermi:"Fermi estimated the Trinity yield by dropping scraps of paper.",
+      planck:"Planck called his 1900 quantum hypothesis 'an act of desperation.'",
+      boltzmann:"S = k log W is carved on Boltzmann's tombstone in Vienna.",
+      faraday:"Faraday had little formal schooling and no calculus, and still gave us field lines.",
+      tesla:"The SI unit of magnetic flux density is the tesla.",
+      galileo:"Galileo spotted Jupiter's four largest moons in 1610.",
+      kepler:"Kepler defended his mother when she was tried for witchcraft.",
+      rutherford:"Rutherford found the nucleus by firing alpha particles at gold foil.",
+      wigner:"Wigner wrote 'The Unreasonable Effectiveness of Mathematics in the Natural Sciences' (1960).",
+      higgs:"Higgs predicted his boson in 1964; CERN found it in 2012.",
+      meitner:"Meitner explained nuclear fission and was left out of the Nobel Prize for it.",
+      chandrasekhar:"Chandrasekhar worked out the white-dwarf mass limit at 19, on a ship to England.",
+      hubble:"Hubble showed in 1924 that there are galaxies beyond the Milky Way.",
+      euler:"Euler kept producing mathematics after going nearly blind.",
+      gauss:"At 19, Gauss proved the regular 17-gon can be built with compass and straightedge.",
+      hamilton:"Hamilton carved the quaternion formula into Broom Bridge, Dublin, in 1843.",
+      oppenheimer:"Oppenheimer and Snyder described gravitational collapse to a black hole in 1939.",
+      yukawa:"Yukawa predicted the pion as the carrier of the nuclear force (1935).",
+      gellmann:"Gell-Mann named quarks after a line in Finnegans Wake.",
+      "gell-mann":"Gell-Mann named quarks after a line in Finnegans Wake.",
+      witten:"Witten is the only physicist to have won the Fields Medal (1990).",
+      weinberg:"Weinberg unified the weak and electromagnetic forces in 1967.",
+      dyson:"Dyson showed that Feynman's diagrams and Schwinger's formalism were the same theory.",
+      rubin:"Vera Rubin's galaxy rotation curves made the case for dark matter.",
+      bose:"Bose's 1924 paper, translated by Einstein, is why they're called bosons.",
+      talbot:"Henry Fox Talbot found the Talbot effect and also pioneered photography.",
+      wolfram:"Wolfram classified the elementary cellular automata in the early 1980s.",
+      hawking:"Hawking showed black holes aren't quite black. You may have noticed.",
+      einstein:"Einstein and Rosen described the bridge in 1935. You just went through it.",
+      aiden:"Aiden: physicist in Sherman, Texas. Currently accepting interesting job offers."
+    };
+    var buf="", keys=Object.keys(PHYS).sort(function(a,b){return b.length-a.length;});
+    window.addEventListener("keydown",function(e){
+      if(e.key.length!==1) return;
+      buf=(buf+e.key.toLowerCase()).slice(-16);
+      for(var i=0;i<keys.length;i++){ if(buf.slice(-keys[i].length)===keys[i]){ buf=""; show(PHYS[keys[i]],9000); return; } }
+    });
+  })();
 
   /* Black hole: type "hawking" (or tap the colonnade three times quickly). */
   var bhActive=false;
