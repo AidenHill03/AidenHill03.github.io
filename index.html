@@ -979,9 +979,18 @@ footer{margin-top:60px}
     function refill(){
       var f=shuffle(FACTS.concat(HISTORY,JAPANESE,QUOTES,MISC)), h=shuffle(HINTS.slice());
       for(var i=0;i<f.length;i++){ queue.push(f[i]); if(i%4===3) queue.push(h[hintI++%h.length]); if(i%6===5) queue.push(HIRE[hireI++%HIRE.length]); }
-      lead.forEach(function(m,i){ queue.splice(6+i*7,0,m); });
+      if(refill.done) lead.forEach(function(m,i){ queue.splice(6+i*7,0,m); });
+      refill.done=true;
     }
-    queue=lead.concat([greeting()]); refill();
+    // Professional opening sequence; casual lines are held back for the first minute.
+    var OPENING=[
+      "Semiconductor-grade silicon is about 99.9999999% pure: nine nines.",
+      "Aiden has characterized doped semiconductors with Hall-effect measurements: carrier type, resistivity, band gap.",
+      "Aiden measures twice, models once, and documents both.",
+      "You should hire Aiden."
+    ];
+    var t0=Date.now(), CASUAL={}; MISC.forEach(function(m){CASUAL[m]=1;});
+    queue=lead.concat([greeting()],OPENING); refill();
 
     var typing=null, timer=null;
     var NAMES=/\b(Newton|Feynman|Galileo|Heisenberg|Dirac|Maxwell|Einstein|Hawking|Tesla|Schrödinger|Curie|Boltzmann|Noether|Bohr)\b/g;
@@ -999,7 +1008,12 @@ footer{margin-top:60px}
       var i=0; paint(sg,0);
       typing=setInterval(function(){ i+=1; paint(sg,i); if(i>=msg.length){ clearInterval(typing); timer=setTimeout(next,hold||Math.max(5200,msg.length*75)); } },26);
     }
-    function next(){ if(!queue.length) refill(); show(queue.shift()); }
+    function next(){
+      if(!queue.length) refill();
+      var tries=queue.length;
+      while(tries-- > 0 && CASUAL[queue[0]] && Date.now()-t0<60000){ queue.push(queue.shift()); }
+      show(queue.shift());
+    }
     box.addEventListener("click",next);
     window.__tickerSay=function(m){ show(m,9000); };
     next();
